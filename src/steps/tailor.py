@@ -136,6 +136,16 @@ def generate_resume_pdf(resume_data: dict, output_dir: Path, config: Config) -> 
         return None
 
 
+def _enforce_one_page(typ_path: Path):
+    """Patch the generated Typst file to fit on exactly one page."""
+    content = typ_path.read_text()
+    # Reduce font size from 11pt to 10pt
+    content = content.replace("size: 11pt", "size: 10pt")
+    # Tighten paragraph leading if present
+    content = content.replace("leading: 0.65em", "leading: 0.55em")
+    typ_path.write_text(content)
+
+
 def generate_cover_letter_pdf(resume_yaml_path: Path, job_description: str,
                                company: str, position: str,
                                output_dir: Path, config: Config) -> Path | None:
@@ -156,6 +166,10 @@ def generate_cover_letter_pdf(resume_yaml_path: Path, job_description: str,
              "--output", str(typ_path)],
             check=True, capture_output=True, text=True,
         )
+
+        # Enforce 1-page cover letter: reduce font size and tighten spacing
+        _enforce_one_page(typ_path)
+
         subprocess.run(
             ["uv", "run", "--directory", str(config.resume_coverletter_dir),
              "scripts/compile_cover_letter.py", str(typ_path),
