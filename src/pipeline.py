@@ -128,10 +128,11 @@ def run_pipeline(args):
         if suggestions.get("suggested_edits"):
             print(f"\nSuggested resume edits:")
             for edit in suggestions["suggested_edits"]:
-                print(f"  Original:  {edit['original'][:80]}...")
-                print(f"  Suggested: {edit['suggested'][:80]}...")
-                print(f"  Reason:    {edit['reason']}")
-                print()
+                print(f"\n  CURRENT:")
+                print(f"    {edit['original']}")
+                print(f"  SUGGESTED:")
+                print(f"    {edit['suggested']}")
+                print(f"  WHY: {edit['reason']}")
 
         if suggestions.get("keyword_gaps"):
             print(f"Keyword gaps: {', '.join(suggestions['keyword_gaps'])}")
