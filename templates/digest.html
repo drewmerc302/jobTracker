@@ -54,6 +54,9 @@
     <a href="{{ m.url }}">View Listing</a>
   </p>
 
+  <p class="section-label">Generate tailored resume &amp; cover letter:</p>
+  <code style="background: #f5f5f5; padding: 4px 8px; border-radius: 4px; font-size: 0.85em;">uv run jobtracker --tailor-job "{{ m.job_id }}"</code>
+
   <p class="section-label">Why this matches:</p>
   <p>{{ m.match_reason }}</p>
 

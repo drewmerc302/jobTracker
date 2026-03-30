@@ -76,7 +76,7 @@ def run_pipeline(args):
 
     if args.list_matches:
         rows = db._conn.execute("""
-            SELECT m.job_id, j.company, j.title, m.relevance_score,
+            SELECT m.job_id, j.company, j.title, j.location, m.relevance_score,
                    CASE WHEN m.resume_path IS NOT NULL THEN 'yes' ELSE 'no' END as has_pdf
             FROM matches m JOIN jobs j ON m.job_id = j.id
             ORDER BY m.relevance_score DESC
@@ -84,10 +84,12 @@ def run_pipeline(args):
         if not rows:
             print("No matches found.")
             return
-        print(f"{'ID':<25} {'Company':<15} {'Title':<45} {'Score':>5} {'PDF':>3}")
-        print("-" * 97)
+        print(f"{'Score':>5}  {'PDF':>3}  {'Company':<12} {'Title':<40} {'Tailor Command'}")
+        print("-" * 110)
         for r in rows:
-            print(f"{r[0]:<25} {r[1]:<15} {r[2]:<45} {r[3]:>5.0%} {r[4]:>3}")
+            job_id, company, title, location, score, has_pdf = r
+            title_display = title[:38] + ".." if len(title) > 40 else title
+            print(f"{score:>5.0%}  {has_pdf:>3}  {company:<12} {title_display:<40} uv run jobtracker --tailor-job \"{job_id}\"")
         return
 
     if args.tailor_job:
