@@ -36,6 +36,8 @@ def parse_args(argv=None):
                         help="Generate resume + cover letter for a specific job (e.g. 'Stripe:7609424')")
     parser.add_argument("--list-matches", action="store_true",
                         help="List all matched jobs with their IDs and scores")
+    parser.add_argument("--show-job", metavar="JOB_ID",
+                        help="Show match analysis, suggested edits, and keyword gaps for a job")
     return parser.parse_args(argv)
 
 
@@ -90,6 +92,57 @@ def run_pipeline(args):
             job_id, company, title, location, score, has_pdf = r
             title_display = title[:38] + ".." if len(title) > 40 else title
             print(f"{score:>5.0%}  {has_pdf:>3}  {company:<12} {title_display:<40} uv run jobtracker --tailor-job \"{job_id}\"")
+        return
+
+    if args.show_job:
+        job_id = args.show_job
+        job = db.get_job(job_id)
+        if not job:
+            print(f"Job not found: {job_id}")
+            return
+        match = db.get_match(job_id)
+        if not match:
+            print(f"No match record for {job_id}")
+            return
+        suggestions = json.loads(match.get("suggestions") or "{}")
+
+        print(f"\n{'=' * 70}")
+        print(f"{job['company']} — {job['title']}")
+        print(f"{'=' * 70}")
+        print(f"Location: {job.get('location', 'N/A')}")
+        print(f"Salary:   {job.get('salary', 'N/A')}")
+        print(f"Score:    {match['relevance_score']:.0%}")
+        print(f"URL:      {job.get('url', 'N/A')}")
+        print(f"\nWhy this matches:\n  {match['match_reason']}")
+
+        if suggestions.get("key_requirements"):
+            print(f"\nKey requirements:")
+            for req in suggestions["key_requirements"]:
+                print(f"  - {req}")
+
+        if suggestions.get("interview_talking_points"):
+            print(f"\nInterview talking points:")
+            for tp in suggestions["interview_talking_points"]:
+                print(f"  - {tp}")
+
+        if suggestions.get("suggested_edits"):
+            print(f"\nSuggested resume edits:")
+            for edit in suggestions["suggested_edits"]:
+                print(f"  Original:  {edit['original'][:80]}...")
+                print(f"  Suggested: {edit['suggested'][:80]}...")
+                print(f"  Reason:    {edit['reason']}")
+                print()
+
+        if suggestions.get("keyword_gaps"):
+            print(f"Keyword gaps: {', '.join(suggestions['keyword_gaps'])}")
+
+        if match.get("resume_path"):
+            print(f"\nResume PDF:       {match['resume_path']}")
+        if match.get("cover_letter_path"):
+            print(f"Cover letter PDF: {match['cover_letter_path']}")
+
+        print(f"\nGenerate/regenerate PDFs:")
+        print(f'  uv run jobtracker --tailor-job "{job_id}"')
         return
 
     if args.tailor_job:
