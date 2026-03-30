@@ -56,6 +56,18 @@ def parse_args(argv=None):
         metavar="JOB_ID",
         help="Show match analysis, suggested edits, and keyword gaps for a job",
     )
+    parser.add_argument(
+        "--status",
+        nargs=2,
+        metavar=("JOB_ID", "STATUS"),
+        help='Set application status (e.g. --status "Stripe:123" applied)',
+    )
+    parser.add_argument(
+        "--track", metavar="JOB_ID", help="Interactive status update with prompts"
+    )
+    parser.add_argument(
+        "--applications", action="store_true", help="Show application status dashboard"
+    )
     return parser.parse_args(argv)
 
 
@@ -95,6 +107,107 @@ def run_pipeline(args):
     start_time = time.time()
     config = Config()
     db = Database(config.db_path)
+
+    if args.status:
+        job_id, new_status = args.status
+        valid_statuses = [
+            "new",
+            "applied",
+            "interviewing",
+            "offer",
+            "rejected",
+            "withdrawn",
+        ]
+        if new_status not in valid_statuses:
+            logger.error(
+                f"Invalid status '{new_status}'. Must be one of: {', '.join(valid_statuses)}"
+            )
+            return
+        job = db.get_job(job_id)
+        if not job:
+            logger.error(f"Job not found: {job_id}")
+            return
+        db.set_application_status(job_id, new_status)
+        print(f"Status updated: {job['company']} — {job['title']} → {new_status}")
+        from src.steps.obsidian import write_application_note, write_dashboard
+
+        write_application_note(job_id, db, config)
+        write_dashboard(db, config)
+        return
+
+    if args.track:
+        job_id = args.track
+        job = db.get_job(job_id)
+        if not job:
+            logger.error(f"Job not found: {job_id}")
+            return
+        app = db.get_application(job_id)
+        current = app["status"] if app else "new"
+        print(f"\n{job['company']} — {job['title']}")
+        print(f"Current status: {current}\n")
+
+        valid_statuses = [
+            "new",
+            "applied",
+            "interviewing",
+            "offer",
+            "rejected",
+            "withdrawn",
+        ]
+        for i, s in enumerate(valid_statuses, 1):
+            marker = " ←" if s == current else ""
+            print(f"  {i}. {s}{marker}")
+        print()
+
+        choice = input("Enter number (or Enter to keep current): ").strip()
+        if choice and choice.isdigit() and 1 <= int(choice) <= len(valid_statuses):
+            new_status = valid_statuses[int(choice) - 1]
+            db.set_application_status(job_id, new_status)
+            print(f"Status → {new_status}")
+        else:
+            new_status = current
+
+        salary = input("Salary notes (Enter to skip): ").strip()
+        if salary:
+            if not app:
+                db.set_application_status(job_id, new_status)
+            db.update_salary_notes(job_id, salary)
+            print("Salary notes saved")
+
+        from src.steps.obsidian import write_application_note, write_dashboard
+
+        write_application_note(job_id, db, config)
+        write_dashboard(db, config)
+
+        from src.steps.obsidian import sanitize_filename
+
+        note_name = sanitize_filename(f"{job['company']} — {job['title']}")
+        print(f"\nObsidian note: Topics/Job Applications/{note_name}.md")
+        return
+
+    if args.applications:
+        apps = db.get_all_applications()
+        if not apps:
+            print("No tracked applications.")
+            return
+        current_status = None
+        for a in apps:
+            status = a.get("status", "new")
+            if status != current_status:
+                count = sum(1 for x in apps if x.get("status", "new") == status)
+                print(f"\n{status.upper()} ({count})")
+                current_status = status
+            score = f"{a['relevance_score']:.0%}" if a.get("relevance_score") else "N/A"
+            company = a["company"][:12]
+            title = a["title"][:40]
+            if a.get("applied_date"):
+                date_info = f"applied {a['applied_date'][:10]}"
+            elif a.get("matched_at"):
+                date_info = f"matched {a['matched_at'][:10]}"
+            else:
+                date_info = ""
+            print(f"  {score:>5}  {company:<12} {title:<40} {date_info}")
+        return
 
     if args.list_matches:
         rows = db._conn.execute("""
