@@ -34,6 +34,8 @@ def parse_args(argv=None):
                         help="Run a single step")
     parser.add_argument("--tailor-job", metavar="JOB_ID",
                         help="Generate resume + cover letter for a specific job (e.g. 'Stripe:7609424')")
+    parser.add_argument("--adopt", metavar="NUMS",
+                        help="Comma-separated edit numbers to apply to the resume (e.g. '1,3,5'). Use with --tailor-job.")
     parser.add_argument("--list-matches", action="store_true",
                         help="List all matched jobs with their IDs and scores")
     parser.add_argument("--show-job", metavar="JOB_ID",
@@ -125,17 +127,18 @@ def run_pipeline(args):
             for tp in suggestions["interview_talking_points"]:
                 print(f"  - {tp}")
 
-        if suggestions.get("suggested_edits"):
+        edits = suggestions.get("suggested_edits", [])
+        if edits:
             print(f"\nSuggested resume edits:")
-            for edit in suggestions["suggested_edits"]:
-                print(f"\n  CURRENT:")
-                print(f"    {edit['original']}")
-                print(f"  SUGGESTED:")
-                print(f"    {edit['suggested']}")
-                print(f"  WHY: {edit['reason']}")
+            for i, edit in enumerate(edits, 1):
+                print(f"\n  [{i}] CURRENT:")
+                print(f"      {edit['original']}")
+                print(f"  [{i}] SUGGESTED:")
+                print(f"      {edit['suggested']}")
+                print(f"  [{i}] WHY: {edit['reason']}")
 
         if suggestions.get("keyword_gaps"):
-            print(f"Keyword gaps: {', '.join(suggestions['keyword_gaps'])}")
+            print(f"\nKeyword gaps: {', '.join(suggestions['keyword_gaps'])}")
 
         if match.get("resume_path"):
             print(f"\nResume PDF:       {match['resume_path']}")
@@ -144,6 +147,12 @@ def run_pipeline(args):
 
         print(f"\nGenerate/regenerate PDFs:")
         print(f'  uv run jobtracker --tailor-job "{job_id}"')
+        if edits:
+            all_nums = ",".join(str(i) for i in range(1, len(edits) + 1))
+            print(f'\nAdopt all suggested edits:')
+            print(f'  uv run jobtracker --tailor-job "{job_id}" --adopt {all_nums}')
+            print(f'\nAdopt specific edits (e.g. 1,3,5):')
+            print(f'  uv run jobtracker --tailor-job "{job_id}" --adopt 1,3,5')
         return
 
     if args.tailor_job:
@@ -158,12 +167,23 @@ def run_pipeline(args):
             return
         resume_yaml_path, resume_data = get_active_resume_yaml(config)
         evaluation = json.loads(match.get("suggestions") or "{}")
+
+        # Parse --adopt flag
+        adopt_indices = set()
+        if args.adopt:
+            try:
+                adopt_indices = {int(n.strip()) for n in args.adopt.split(",")}
+            except ValueError:
+                logger.error("--adopt must be comma-separated numbers (e.g. '1,3,5')")
+                return
+
         run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M")
         output_dir = config.output_dir / run_date
         result = run_tailor_for_job(
             job=dict(job), evaluation=evaluation,
             resume_yaml_path=resume_yaml_path, resume_data=resume_data,
             output_dir=output_dir, config=config, db=db,
+            adopt_edits=adopt_indices,
         )
         if result.get("resume_pdf"):
             print(f"Resume PDF:       {result['resume_pdf']}")

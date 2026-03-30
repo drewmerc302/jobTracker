@@ -82,6 +82,43 @@ def reorder_resume_yaml(resume_data: dict, reorder_map: dict) -> dict:
     return result
 
 
+def apply_suggested_edits(resume_data: dict, edits: list[dict], adopt_indices: set[int]) -> dict:
+    """Apply selected suggested edits to resume data. Edits are 1-indexed."""
+    result = copy.deepcopy(resume_data)
+    edits_to_apply = {}
+    for i, edit in enumerate(edits, 1):
+        if i in adopt_indices:
+            edits_to_apply[edit["original"]] = edit["suggested"]
+
+    if not edits_to_apply:
+        return result
+
+    # Apply edits to summary
+    if "summary" in result:
+        for original, suggested in edits_to_apply.items():
+            if original in result["summary"]:
+                result["summary"] = result["summary"].replace(original, suggested)
+
+    # Apply edits to experience bullets and achievements
+    for exp in result.get("experience", []):
+        for field in ("bullets", "achievements"):
+            items = exp.get(field, [])
+            for j, item in enumerate(items):
+                for original, suggested in edits_to_apply.items():
+                    if original in item:
+                        items[j] = item.replace(original, suggested)
+        # Also check nested positions
+        for pos in exp.get("positions", []):
+            for field in ("achievements", "bullets"):
+                items = pos.get(field, [])
+                for j, item in enumerate(items):
+                    for original, suggested in edits_to_apply.items():
+                        if original in item:
+                            items[j] = item.replace(original, suggested)
+
+    return result
+
+
 @_llm_retry
 def llm_resume_analysis(resume_yaml_str: str, job_description: str, config: Config) -> dict:
     client = anthropic.Anthropic(api_key=config.anthropic_api_key)
@@ -185,11 +222,19 @@ def generate_cover_letter_pdf(resume_yaml_path: Path, job_description: str,
 
 def run_tailor_for_job(job: dict, evaluation: dict, resume_yaml_path: Path,
                        resume_data: dict, output_dir: Path,
-                       config: Config, db: Database) -> dict:
+                       config: Config, db: Database,
+                       adopt_edits: set[int] | None = None) -> dict:
     job_dir = output_dir / f"{job['company']}_{job['id'].replace(':', '_')}"
     resume_yaml_str = yaml.dump(resume_data, default_flow_style=False)
     analysis = llm_resume_analysis(resume_yaml_str, job.get("description", ""), config)
     tailored = reorder_resume_yaml(resume_data, analysis.get("reordered_bullets", {}))
+
+    # Apply adopted suggested edits to the resume
+    if adopt_edits:
+        edits = analysis.get("suggested_edits", [])
+        tailored = apply_suggested_edits(tailored, edits, adopt_edits)
+        logger.info(f"Applied {len(adopt_edits)} suggested edits to resume")
+
     resume_pdf = generate_resume_pdf(tailored, job_dir, config)
     cover_letter_pdf = generate_cover_letter_pdf(
         resume_yaml_path, job.get("description", ""),
