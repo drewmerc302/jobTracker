@@ -3,9 +3,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-import pytest
 
-from src.scrapers.base import RawJob, BaseScraper
+from src.scrapers.base import RawJob
 from src.scrapers.greenhouse import GreenhouseScraper
 from src.scrapers.workday import WorkdayScraper
 
@@ -14,10 +13,17 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 def test_raw_job_db_id():
     job = RawJob(
-        external_id="12345", company="Dropbox", title="EM",
-        url="https://example.com", location=None, remote=None,
-        salary=None, description=None, department=None,
-        seniority=None, scraped_at=datetime.now(timezone.utc),
+        external_id="12345",
+        company="Dropbox",
+        title="EM",
+        url="https://example.com",
+        location=None,
+        remote=None,
+        salary=None,
+        description=None,
+        department=None,
+        seniority=None,
+        scraped_at=datetime.now(timezone.utc),
     )
     assert job.db_id == "Dropbox:12345"
 
@@ -31,7 +37,7 @@ def test_greenhouse_parse_jobs():
     assert jobs[0].external_id == "12345"
     assert jobs[0].company == "Dropbox"
     assert jobs[0].title == "Engineering Manager, Platform"
-    assert jobs[0].url == "https://jobs.dropbox.com/listing/12345"
+    assert jobs[0].url == "https://job-boards.greenhouse.io/dropbox/jobs/12345"
     assert jobs[0].location == "Remote - US"
     assert jobs[0].department == "Engineering"
     assert "Lead a team" in jobs[0].description

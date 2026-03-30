@@ -3,7 +3,12 @@ import re
 from datetime import datetime, timezone
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 from .base import BaseScraper, RawJob
 
@@ -45,19 +50,23 @@ class GreenhouseScraper(BaseScraper):
         for item in data.get("jobs", []):
             salary = self._extract_salary(item.get("content", ""))
             seniority = self._extract_metadata(item, "IC or MG")
-            jobs.append(RawJob(
-                external_id=str(item["id"]),
-                company=self.company_name,
-                title=item["title"],
-                url=item.get("absolute_url", ""),
-                location=item.get("location", {}).get("name"),
-                remote=self._is_remote(item),
-                salary=salary,
-                description=item.get("content"),
-                department=(item.get("departments") or [{}])[0].get("name") if item.get("departments") else None,
-                seniority=seniority,
-                scraped_at=now,
-            ))
+            jobs.append(
+                RawJob(
+                    external_id=str(item["id"]),
+                    company=self.company_name,
+                    title=item["title"],
+                    url=f"https://job-boards.greenhouse.io/{self.board_slug}/jobs/{item['id']}",
+                    location=item.get("location", {}).get("name"),
+                    remote=self._is_remote(item),
+                    salary=salary,
+                    description=item.get("content"),
+                    department=(item.get("departments") or [{}])[0].get("name")
+                    if item.get("departments")
+                    else None,
+                    seniority=seniority,
+                    scraped_at=now,
+                )
+            )
         return jobs
 
     def _extract_salary(self, html_content: str) -> str | None:
