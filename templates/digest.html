@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #333; max-width: 700px; margin: 0 auto; padding: 20px; }
+  h1 { color: #1a1a2e; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }
+  h2 { color: #16213e; margin-top: 30px; }
+  .summary-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+  .summary-table th, .summary-table td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  .summary-table th { background: #f5f5f5; }
+  .score { font-weight: bold; }
+  .score-high { color: #2e7d32; }
+  .score-med { color: #f57f17; }
+  .job-section { border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0; }
+  .job-header { margin: 0 0 10px 0; }
+  .meta { color: #666; font-size: 0.9em; }
+  .section-label { font-weight: bold; color: #16213e; margin-top: 15px; }
+  .edit-item { background: #f9f9f9; padding: 10px; border-radius: 4px; margin: 8px 0; }
+  .edit-original { color: #c62828; text-decoration: line-through; }
+  .edit-suggested { color: #2e7d32; }
+  .edit-reason { color: #666; font-size: 0.85em; font-style: italic; }
+  .keyword-gap { display: inline-block; background: #fff3e0; padding: 2px 8px; border-radius: 4px; margin: 2px; font-size: 0.85em; }
+  .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #e0e0e0; color: #999; font-size: 0.85em; }
+  a { color: #1565c0; }
+</style>
+</head>
+<body>
+
+<h1>Job Tracker Digest &mdash; {{ date }}</h1>
+
+{% if matches %}
+<p><strong>{{ matches|length }}</strong> new match{{ 'es' if matches|length > 1 else '' }} found.</p>
+
+<table class="summary-table">
+<tr><th>Company</th><th>Title</th><th>Location</th><th>Salary</th><th>Score</th></tr>
+{% for m in matches %}
+<tr>
+  <td>{{ m.company }}</td>
+  <td><a href="{{ m.url }}">{{ m.title }}</a></td>
+  <td>{{ m.location or 'N/A' }}</td>
+  <td>{{ m.salary or 'N/A' }}</td>
+  <td class="score {{ 'score-high' if m.relevance_score >= 0.8 else 'score-med' }}">{{ '%.0f'|format(m.relevance_score * 100) }}%</td>
+</tr>
+{% endfor %}
+</table>
+
+{% for m in matches %}
+<div class="job-section">
+  <h2 class="job-header">{{ m.company }} &mdash; {{ m.title }}</h2>
+  <p class="meta">
+    Score: {{ '%.0f'|format(m.relevance_score * 100) }}% |
+    Location: {{ m.location or 'N/A' }} |
+    Salary: {{ m.salary or 'N/A' }}<br>
+    <a href="{{ m.url }}">View Listing</a>
+  </p>
+
+  <p class="section-label">Why this matches:</p>
+  <p>{{ m.match_reason }}</p>
+
+  {% if m.suggestions_parsed.key_requirements %}
+  <p class="section-label">Key requirements:</p>
+  <ul>
+  {% for req in m.suggestions_parsed.key_requirements %}
+    <li>{{ req }}</li>
+  {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if m.suggestions_parsed.interview_talking_points %}
+  <p class="section-label">Interview talking points:</p>
+  <ul>
+  {% for tp in m.suggestions_parsed.interview_talking_points %}
+    <li>{{ tp }}</li>
+  {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if m.suggestions_parsed.suggested_edits %}
+  <p class="section-label">Suggested resume edits:</p>
+  {% for edit in m.suggestions_parsed.suggested_edits %}
+  <div class="edit-item">
+    <span class="edit-original">{{ edit.original }}</span><br>
+    <span class="edit-suggested">{{ edit.suggested }}</span><br>
+    <span class="edit-reason">{{ edit.reason }}</span>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if m.suggestions_parsed.keyword_gaps %}
+  <p class="section-label">Keyword gaps:</p>
+  <p>{% for kw in m.suggestions_parsed.keyword_gaps %}<span class="keyword-gap">{{ kw }}</span>{% endfor %}</p>
+  {% endif %}
+
+  {% if m.resume_path or m.cover_letter_path %}
+  <p class="section-label">Attachments:</p>
+  <p>
+    {% if m.resume_path %}Resume PDF attached{% endif %}
+    {% if m.resume_path and m.cover_letter_path %} | {% endif %}
+    {% if m.cover_letter_path %}Cover letter PDF attached{% endif %}
+  </p>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% else %}
+<p>No new matches found this run.</p>
+{% endif %}
+
+<div class="footer">
+  <p>
+    Jobs scraped: {{ run_stats.jobs_scraped }} |
+    New jobs: {{ run_stats.new_jobs }} |
+    Matches: {{ run_stats.matches_found }} |
+    Duration: {{ run_stats.duration }}
+  </p>
+</div>
+
+</body>
+</html>
