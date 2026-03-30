@@ -1,5 +1,5 @@
 #!/bin/bash
-export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+export PATH="/Users/drewmerc/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 cd /Users/drewmerc/workspace/jobTracker
 
 # Truncate logs to ~1MB
