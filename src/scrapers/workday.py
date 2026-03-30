@@ -84,7 +84,7 @@ class WorkdayScraper(BaseScraper):
         if not path:
             return None
         try:
-            url = f"{self.base_url}{self.path}/job/{path}"
+            url = f"{self.base_url}{self.path}/{path}"
             resp = client.get(url)
             resp.raise_for_status()
             return self._parse_detail(resp.json(), listing["external_id"])
@@ -95,7 +95,7 @@ class WorkdayScraper(BaseScraper):
                 external_id=listing["external_id"],
                 company=self.company_name,
                 title=listing["title"],
-                url=f"{self.base_url}{self.path}/job/{path}",
+                url=f"{self.base_url}{self.path}/{path}",
                 location=listing.get("location"),
                 remote=None, salary=None, description=None,
                 department=None, seniority=None, scraped_at=now,
