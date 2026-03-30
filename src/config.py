@@ -63,6 +63,16 @@ class Config:
         "junior", "associate", "intern",
     ])
 
+    # Location filtering: if a role requires in-office, only accept these areas
+    # (roughly 1 hour commute from Yardley, PA)
+    acceptable_locations: list[str] = field(default_factory=lambda: [
+        "new york", "nyc", "manhattan", "brooklyn",
+        "philadelphia", "philly",
+        "newark", "jersey city", "new jersey", "princeton",
+        "trenton", "yardley", "bucks county",
+        "remote",
+    ])
+
     def matches_keyword(self, title: str) -> bool:
         title_lower = title.lower()
         if self.is_seniority_excluded(title):
@@ -75,3 +85,15 @@ class Config:
             if re.search(rf"\b{re.escape(excl)}\b", title_lower):
                 return True
         return False
+
+    def is_location_acceptable(self, location: str | None, is_remote: bool | None) -> bool:
+        """Check if a job's location is acceptable given commute constraints.
+        Remote jobs always pass. Non-remote jobs must be in an acceptable area."""
+        if is_remote:
+            return True
+        if not location:
+            return True  # No location info — let it through for LLM to evaluate
+        location_lower = location.lower()
+        if "remote" in location_lower:
+            return True
+        return any(loc in location_lower for loc in self.acceptable_locations)

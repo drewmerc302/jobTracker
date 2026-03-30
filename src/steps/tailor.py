@@ -113,7 +113,7 @@ def generate_resume_pdf(resume_data: dict, output_dir: Path, config: Config) -> 
     output_dir.mkdir(parents=True, exist_ok=True)
     yaml_path = output_dir / "resume.yaml"
     typ_path = output_dir / "resume.typ"
-    pdf_path = output_dir / "resume.pdf"
+    pdf_path = output_dir / "Andrew_Mercurio_resume.pdf"
 
     with open(yaml_path, "w") as f:
         yaml.dump(resume_data, f, default_flow_style=False, allow_unicode=True)
@@ -150,9 +150,10 @@ def generate_cover_letter_pdf(resume_yaml_path: Path, job_description: str,
                                company: str, position: str,
                                output_dir: Path, config: Config) -> Path | None:
     output_dir.mkdir(parents=True, exist_ok=True)
+    company_clean = company.replace(" ", "_")
     jd_path = output_dir / "job_description.txt"
     typ_path = output_dir / "cover_letter.typ"
-    pdf_path = output_dir / "cover_letter.pdf"
+    pdf_path = output_dir / f"{company_clean}_cover_letter.pdf"
     jd_path.write_text(job_description)
 
     try:

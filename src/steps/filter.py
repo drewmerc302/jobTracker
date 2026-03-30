@@ -45,8 +45,12 @@ def keyword_filter(jobs: list[dict], config: Config) -> list[dict]:
         if not job.get("description"):
             logger.debug(f"Skipping {job['id']}: no description")
             continue
-        if config.matches_keyword(job["title"]):
-            matches.append(job)
+        if not config.matches_keyword(job["title"]):
+            continue
+        if not config.is_location_acceptable(job.get("location"), job.get("remote")):
+            logger.debug(f"Skipping {job['id']}: location '{job.get('location')}' not in commute range")
+            continue
+        matches.append(job)
     logger.info(f"Keyword filter: {len(jobs)} -> {len(matches)}")
     return matches
 
