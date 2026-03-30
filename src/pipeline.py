@@ -73,8 +73,14 @@ def parse_args(argv=None):
 
 def build_scrapers(config: Config) -> list:
     scrapers = []
-    for slug, name in config.greenhouse_boards.items():
-        scrapers.append(GreenhouseScraper(board_slug=slug, company_name=name))
+    for slug, info in config.greenhouse_boards.items():
+        scrapers.append(
+            GreenhouseScraper(
+                board_slug=slug,
+                company_name=info["display_name"],
+                url_template=info.get("url_template"),
+            )
+        )
     for key, info in config.workday_companies.items():
         scrapers.append(
             WorkdayScraper(

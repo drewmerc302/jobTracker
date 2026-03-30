@@ -24,10 +24,22 @@ _http_retry = retry(
 )
 
 
+def _slugify(title: str) -> str:
+    """Convert a job title to a URL slug."""
+    slug = title.lower()
+    slug = re.sub(r"[^a-z0-9\s-]", "", slug)
+    slug = re.sub(r"\s+", "-", slug).strip("-")
+    slug = re.sub(r"-+", "-", slug)
+    return slug
+
+
 class GreenhouseScraper(BaseScraper):
-    def __init__(self, board_slug: str, company_name: str):
+    def __init__(
+        self, board_slug: str, company_name: str, url_template: str | None = None
+    ):
         self.board_slug = board_slug
         self.company_name = company_name
+        self.url_template = url_template
 
     def fetch_jobs(self) -> list[RawJob]:
         url = f"{GREENHOUSE_API}/{self.board_slug}/jobs?content=true"
@@ -55,7 +67,7 @@ class GreenhouseScraper(BaseScraper):
                     external_id=str(item["id"]),
                     company=self.company_name,
                     title=item["title"],
-                    url=f"https://job-boards.greenhouse.io/{self.board_slug}/jobs/{item['id']}",
+                    url=self._build_url(item),
                     location=item.get("location", {}).get("name"),
                     remote=self._is_remote(item),
                     salary=salary,
@@ -68,6 +80,13 @@ class GreenhouseScraper(BaseScraper):
                 )
             )
         return jobs
+
+    def _build_url(self, item: dict) -> str:
+        """Build the job listing URL. Uses custom template if configured, else Greenhouse embed."""
+        if self.url_template:
+            slug = _slugify(item.get("title", ""))
+            return self.url_template.format(slug=slug, id=item["id"])
+        return f"https://job-boards.greenhouse.io/{self.board_slug}/jobs/{item['id']}"
 
     def _extract_salary(self, html_content: str) -> str | None:
         patterns = [

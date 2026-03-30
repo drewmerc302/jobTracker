@@ -38,6 +38,21 @@ def test_greenhouse_parse_jobs():
     assert jobs[0].company == "Dropbox"
     assert jobs[0].title == "Engineering Manager, Platform"
     assert jobs[0].url == "https://job-boards.greenhouse.io/dropbox/jobs/12345"
+
+
+def test_greenhouse_custom_url_template():
+    with open(FIXTURES / "greenhouse_response.json") as f:
+        data = json.load(f)
+    scraper = GreenhouseScraper(
+        board_slug="stripe",
+        company_name="Stripe",
+        url_template="https://stripe.com/jobs/listing/{slug}/{id}",
+    )
+    jobs = scraper._parse_response(data)
+    assert (
+        jobs[0].url
+        == "https://stripe.com/jobs/listing/engineering-manager-platform/12345"
+    )
     assert jobs[0].location == "Remote - US"
     assert jobs[0].department == "Engineering"
     assert "Lead a team" in jobs[0].description
