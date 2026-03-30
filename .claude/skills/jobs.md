@@ -48,6 +48,24 @@ uv run jobtracker --renotify
 uv run jobtracker --step scrape|filter|tailor|notify
 ```
 
+### Set application status
+```bash
+uv run jobtracker --status "COMPANY:ID" applied
+```
+Valid statuses: new, applied, interviewing, offer, rejected, withdrawn
+
+### Interactive tracking (with prompts)
+```bash
+uv run jobtracker --track "COMPANY:ID"
+```
+Prompts for status and salary notes. Creates/updates Obsidian note at `Topics/Job Applications/`.
+
+### View application dashboard
+```bash
+uv run jobtracker --applications
+```
+Groups all tracked applications by status with scores and dates.
+
 ## Adding a new company
 
 ### Greenhouse (most tech companies)
@@ -74,5 +92,7 @@ Create a new scraper in `src/scrapers/` implementing `BaseScraper`, then registe
 
 1. **See what matched:** `uv run jobtracker --list-matches`
 2. **Read the analysis:** `uv run jobtracker --show-job "Stripe:7609424"`
-3. **Generate PDFs:** `uv run jobtracker --tailor-job "Stripe:7609424"`
-4. **Open the PDFs**, review, and apply
+3. **Generate PDFs:** `uv run jobtracker --tailor-job "Stripe:7609424" --adopt 1,3,5`
+4. **Mark as applied:** `uv run jobtracker --status "Stripe:7609424" applied`
+5. **Track progress:** `uv run jobtracker --applications`
+6. **Add details:** `uv run jobtracker --track "Stripe:7609424"` (contacts, salary, interview prep in Obsidian note)
