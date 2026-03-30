@@ -32,7 +32,7 @@
 <p><strong>{{ matches|length }}</strong> new match{{ 'es' if matches|length > 1 else '' }} found.</p>
 
 <table class="summary-table">
-<tr><th>Company</th><th>Title</th><th>Location</th><th>Salary</th><th>Score</th><th></th></tr>
+<tr><th>Company</th><th>Title</th><th>Location</th><th>Salary</th><th>Score</th></tr>
 {% for m in matches %}
 <tr>
   <td>{{ m.company }}</td>
@@ -40,13 +40,12 @@
   <td>{{ m.location or 'N/A' }}</td>
   <td>{{ m.salary or 'N/A' }}</td>
   <td class="score {{ 'score-high' if m.relevance_score >= 0.8 else 'score-med' }}">{{ '%.0f'|format(m.relevance_score * 100) }}%</td>
-  <td><a href="#job-{{ m.job_id | replace(':', '-') }}">Details</a></td>
 </tr>
 {% endfor %}
 </table>
 
 {% for m in matches %}
-<div class="job-section" id="job-{{ m.job_id | replace(':', '-') }}">
+<div class="job-section">
   <h2 class="job-header">{{ m.company }} &mdash; {{ m.title }}</h2>
   <p class="meta">
     Score: {{ '%.0f'|format(m.relevance_score * 100) }}% |
