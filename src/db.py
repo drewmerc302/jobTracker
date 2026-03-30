@@ -49,14 +49,41 @@ class Database:
                 email_sent BOOLEAN DEFAULT 0,
                 error TEXT
             );
+            CREATE TABLE IF NOT EXISTS applications (
+                job_id TEXT PRIMARY KEY REFERENCES jobs(id),
+                status TEXT NOT NULL,
+                applied_date TEXT,
+                salary_notes TEXT,
+                status_updated_at TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS status_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id TEXT NOT NULL REFERENCES jobs(id),
+                old_status TEXT,
+                new_status TEXT NOT NULL,
+                changed_at TEXT NOT NULL
+            );
         """)
 
-    def upsert_job(self, *, id: str, company: str, title: str, url: str,
-                   scraped_at: datetime, location: str = None, remote: bool = None,
-                   salary: str = None, description: str = None, department: str = None,
-                   seniority: str = None):
+    def upsert_job(
+        self,
+        *,
+        id: str,
+        company: str,
+        title: str,
+        url: str,
+        scraped_at: datetime,
+        location: str = None,
+        remote: bool = None,
+        salary: str = None,
+        description: str = None,
+        department: str = None,
+        seniority: str = None,
+    ):
         now = scraped_at.isoformat()
-        self._conn.execute("""
+        self._conn.execute(
+            """
             INSERT INTO jobs (id, company, title, url, location, remote, salary,
                             description, department, seniority, first_seen_at, last_seen_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -66,18 +93,34 @@ class Database:
                 salary = COALESCE(excluded.salary, jobs.salary),
                 location = COALESCE(excluded.location, jobs.location),
                 closed_at = NULL
-        """, (id, company, title, url, location, remote, salary,
-              description, department, seniority, now, now))
+        """,
+            (
+                id,
+                company,
+                title,
+                url,
+                location,
+                remote,
+                salary,
+                description,
+                department,
+                seniority,
+                now,
+                now,
+            ),
+        )
         self._conn.commit()
 
     def get_job(self, job_id: str) -> dict | None:
-        row = self._conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        row = self._conn.execute(
+            "SELECT * FROM jobs WHERE id = ?", (job_id,)
+        ).fetchone()
         return dict(row) if row else None
 
     def get_new_job_ids(self, candidate_ids: list[str]) -> list[str]:
         existing = set()
         for i in range(0, len(candidate_ids), 500):
-            batch = candidate_ids[i:i + 500]
+            batch = candidate_ids[i : i + 500]
             placeholders = ",".join("?" * len(batch))
             rows = self._conn.execute(
                 f"SELECT id FROM jobs WHERE id IN ({placeholders})", batch
@@ -90,7 +133,7 @@ class Database:
         if not current_ids:
             self._conn.execute(
                 "UPDATE jobs SET closed_at = ? WHERE company = ? AND closed_at IS NULL",
-                (now, company)
+                (now, company),
             )
         else:
             placeholders = ",".join("?" * len(current_ids))
@@ -98,25 +141,43 @@ class Database:
                 f"""UPDATE jobs SET closed_at = ?
                     WHERE company = ? AND closed_at IS NULL
                     AND id NOT IN ({placeholders})""",
-                [now, company] + current_ids
+                [now, company] + current_ids,
             )
         self._conn.commit()
 
-    def insert_match(self, *, job_id: str, relevance_score: float,
-                     match_reason: str, suggestions: str = None,
-                     resume_path: str = None, cover_letter_path: str = None):
+    def insert_match(
+        self,
+        *,
+        job_id: str,
+        relevance_score: float,
+        match_reason: str,
+        suggestions: str = None,
+        resume_path: str = None,
+        cover_letter_path: str = None,
+    ):
         now = datetime.now(timezone.utc).isoformat()
-        self._conn.execute("""
+        self._conn.execute(
+            """
             INSERT OR REPLACE INTO matches
             (job_id, relevance_score, match_reason, suggestions, resume_path,
              cover_letter_path, matched_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (job_id, relevance_score, match_reason, suggestions,
-              resume_path, cover_letter_path, now))
+        """,
+            (
+                job_id,
+                relevance_score,
+                match_reason,
+                suggestions,
+                resume_path,
+                cover_letter_path,
+                now,
+            ),
+        )
         self._conn.commit()
 
-    def update_match_paths(self, job_id: str, *, resume_path: str = None,
-                           cover_letter_path: str = None):
+    def update_match_paths(
+        self, job_id: str, *, resume_path: str = None, cover_letter_path: str = None
+    ):
         updates = []
         params = []
         if resume_path:
@@ -139,7 +200,9 @@ class Database:
         self._conn.commit()
 
     def get_match(self, job_id: str) -> dict | None:
-        row = self._conn.execute("SELECT * FROM matches WHERE job_id = ?", (job_id,)).fetchone()
+        row = self._conn.execute(
+            "SELECT * FROM matches WHERE job_id = ?", (job_id,)
+        ).fetchone()
         return dict(row) if row else None
 
     def get_unnotified_matches(self) -> list[dict]:
@@ -165,18 +228,31 @@ class Database:
         self._conn.commit()
         return cursor.lastrowid
 
-    def complete_run(self, run_id: int, *, jobs_scraped: int, new_jobs: int,
-                     matches_found: int, email_sent: bool, error: str = None):
+    def complete_run(
+        self,
+        run_id: int,
+        *,
+        jobs_scraped: int,
+        new_jobs: int,
+        matches_found: int,
+        email_sent: bool,
+        error: str = None,
+    ):
         now = datetime.now(timezone.utc).isoformat()
-        self._conn.execute("""
+        self._conn.execute(
+            """
             UPDATE runs SET completed_at = ?, jobs_scraped = ?, new_jobs = ?,
                            matches_found = ?, email_sent = ?, error = ?
             WHERE id = ?
-        """, (now, jobs_scraped, new_jobs, matches_found, email_sent, error, run_id))
+        """,
+            (now, jobs_scraped, new_jobs, matches_found, email_sent, error, run_id),
+        )
         self._conn.commit()
 
     def get_run(self, run_id: int) -> dict | None:
-        row = self._conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+        row = self._conn.execute(
+            "SELECT * FROM runs WHERE id = ?", (run_id,)
+        ).fetchone()
         return dict(row) if row else None
 
     def get_last_failed_run_with_matches(self) -> dict | None:
@@ -186,3 +262,70 @@ class Database:
             ORDER BY id DESC LIMIT 1
         """).fetchone()
         return dict(row) if row else None
+
+    def set_application_status(self, job_id: str, status: str):
+        now = datetime.now(timezone.utc).isoformat()
+        existing = self.get_application(job_id)
+        old_status = existing["status"] if existing else None
+
+        if existing:
+            updates = {"status": status, "status_updated_at": now}
+            if status == "applied" and not existing.get("applied_date"):
+                updates["applied_date"] = now
+            set_clause = ", ".join(f"{k} = ?" for k in updates)
+            self._conn.execute(
+                f"UPDATE applications SET {set_clause} WHERE job_id = ?",
+                list(updates.values()) + [job_id],
+            )
+        else:
+            applied_date = now if status == "applied" else None
+            self._conn.execute(
+                "INSERT INTO applications (job_id, status, applied_date, status_updated_at, created_at) VALUES (?, ?, ?, ?, ?)",
+                (job_id, status, applied_date, now, now),
+            )
+
+        self._conn.execute(
+            "INSERT INTO status_history (job_id, old_status, new_status, changed_at) VALUES (?, ?, ?, ?)",
+            (job_id, old_status, status, now),
+        )
+        self._conn.commit()
+
+    def get_application(self, job_id: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT * FROM applications WHERE job_id = ?", (job_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_status_history(self, job_id: str) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM status_history WHERE job_id = ? ORDER BY id", (job_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_all_applications(self) -> list[dict]:
+        rows = self._conn.execute("""
+            SELECT m.job_id, j.company, j.title, j.url, j.location, m.relevance_score,
+                   COALESCE(a.status, 'new') as status,
+                   a.applied_date, a.status_updated_at, a.salary_notes,
+                   m.matched_at, m.resume_path, m.cover_letter_path
+            FROM matches m
+            JOIN jobs j ON m.job_id = j.id
+            LEFT JOIN applications a ON m.job_id = a.job_id
+            ORDER BY
+                CASE COALESCE(a.status, 'new')
+                    WHEN 'interviewing' THEN 1
+                    WHEN 'offer' THEN 2
+                    WHEN 'applied' THEN 3
+                    WHEN 'new' THEN 4
+                    WHEN 'rejected' THEN 5
+                    WHEN 'withdrawn' THEN 6
+                END,
+                m.relevance_score DESC
+        """).fetchall()
+        return [dict(r) for r in rows]
+
+    def update_salary_notes(self, job_id: str, notes: str):
+        self._conn.execute(
+            "UPDATE applications SET salary_notes = ? WHERE job_id = ?", (notes, job_id)
+        )
+        self._conn.commit()
