@@ -32,6 +32,10 @@ def parse_args(argv=None):
                         help="Re-send last failed email digest")
     parser.add_argument("--step", choices=["scrape", "filter", "tailor", "notify"],
                         help="Run a single step")
+    parser.add_argument("--tailor-job", metavar="JOB_ID",
+                        help="Generate resume + cover letter for a specific job (e.g. 'Stripe:7609424')")
+    parser.add_argument("--list-matches", action="store_true",
+                        help="List all matched jobs with their IDs and scores")
     return parser.parse_args(argv)
 
 
@@ -69,6 +73,49 @@ def run_pipeline(args):
     start_time = time.time()
     config = Config()
     db = Database(config.db_path)
+
+    if args.list_matches:
+        rows = db._conn.execute("""
+            SELECT m.job_id, j.company, j.title, m.relevance_score,
+                   CASE WHEN m.resume_path IS NOT NULL THEN 'yes' ELSE 'no' END as has_pdf
+            FROM matches m JOIN jobs j ON m.job_id = j.id
+            ORDER BY m.relevance_score DESC
+        """).fetchall()
+        if not rows:
+            print("No matches found.")
+            return
+        print(f"{'ID':<25} {'Company':<15} {'Title':<45} {'Score':>5} {'PDF':>3}")
+        print("-" * 97)
+        for r in rows:
+            print(f"{r[0]:<25} {r[1]:<15} {r[2]:<45} {r[3]:>5.0%} {r[4]:>3}")
+        return
+
+    if args.tailor_job:
+        job_id = args.tailor_job
+        job = db.get_job(job_id)
+        if not job:
+            logger.error(f"Job not found: {job_id}. Use --list-matches to see available IDs.")
+            return
+        match = db.get_match(job_id)
+        if not match:
+            logger.error(f"No match record for {job_id}. Run the filter step first.")
+            return
+        resume_yaml_path, resume_data = get_active_resume_yaml(config)
+        evaluation = json.loads(match.get("suggestions") or "{}")
+        run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M")
+        output_dir = config.output_dir / run_date
+        result = run_tailor_for_job(
+            job=dict(job), evaluation=evaluation,
+            resume_yaml_path=resume_yaml_path, resume_data=resume_data,
+            output_dir=output_dir, config=config, db=db,
+        )
+        if result.get("resume_pdf"):
+            print(f"Resume PDF:       {result['resume_pdf']}")
+        if result.get("cover_letter_pdf"):
+            print(f"Cover letter PDF: {result['cover_letter_pdf']}")
+        if not result.get("resume_pdf") and not result.get("cover_letter_pdf"):
+            print("PDF generation failed. Check logs.")
+        return
 
     if args.renotify:
         logger.info("Re-notify mode: resending last failed digest")
