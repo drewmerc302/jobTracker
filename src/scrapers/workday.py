@@ -18,6 +18,18 @@ _http_retry = retry(
 )
 
 
+MANAGER_KEYWORDS = [
+    "engineering manager", "manager of engineering", "director of engineering",
+    "head of engineering", "software engineering manager", "technical manager",
+    "engineering lead", "development manager",
+]
+
+
+def _title_matches_manager(title: str) -> bool:
+    title_lower = title.lower()
+    return any(kw in title_lower for kw in MANAGER_KEYWORDS)
+
+
 class WorkdayScraper(BaseScraper):
     def __init__(self, company_name: str, base_url: str, path: str):
         self.company_name = company_name
@@ -34,13 +46,35 @@ class WorkdayScraper(BaseScraper):
             ) as client:
                 listings = self._fetch_all_listings(client)
                 logger.info(f"Found {len(listings)} listings for {self.company_name}")
+
+                # Only fetch detail pages for manager-relevant titles
+                relevant = [l for l in listings if _title_matches_manager(l["title"])]
+                logger.info(f"  {len(relevant)} match manager keywords, fetching details")
+
                 jobs = []
-                for i, listing in enumerate(listings):
+                now = datetime.now(timezone.utc)
+                # Store all listings as basic records (for tracking/dedup)
+                for listing in listings:
+                    if listing in relevant:
+                        continue  # Will be fetched with detail below
+                    jobs.append(RawJob(
+                        external_id=listing["external_id"],
+                        company=self.company_name,
+                        title=listing["title"],
+                        url=f"{self.base_url}{self.path}/{listing.get('external_path', '')}",
+                        location=listing.get("location"),
+                        remote=None, salary=None, description=None,
+                        department=None, seniority=None, scraped_at=now,
+                    ))
+
+                # Fetch full details only for relevant titles
+                for i, listing in enumerate(relevant):
                     if i > 0:
                         time.sleep(self.request_delay)
                     job = self._fetch_detail(client, listing)
                     if job:
                         jobs.append(job)
+
                 return jobs
         except Exception as e:
             logger.error(f"Failed to fetch {self.company_name} jobs: {e}")

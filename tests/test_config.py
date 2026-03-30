@@ -4,7 +4,8 @@ from src.config import Config
 def test_config_loads_defaults():
     config = Config()
     assert config.relevance_threshold == 0.6
-    assert config.llm_model == "claude-sonnet-4-6"
+    assert config.llm_filter_model == "claude-haiku-4-5-20251001"
+    assert config.llm_tailor_model == "claude-sonnet-4-6"
     assert config.email_to == "andrew.m.mercurio@gmail.com"
     assert config.db_path.name == "jobtracker.db"
     assert len(config.keyword_patterns) > 0

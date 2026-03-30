@@ -16,7 +16,8 @@ class Config:
     smtp_user: str = field(default_factory=lambda: os.getenv("SMTP_USER", ""))
     smtp_password: str = field(default_factory=lambda: os.getenv("SMTP_PASSWORD", ""))
     email_to: str = "andrew.m.mercurio@gmail.com"
-    llm_model: str = "claude-sonnet-4-6"
+    llm_filter_model: str = "claude-haiku-4-5-20251001"
+    llm_tailor_model: str = "claude-sonnet-4-6"
     relevance_threshold: float = 0.6
     resume_versions_path: Path = field(default_factory=lambda: Path.home() / ".resume_versions")
     resume_project: str = "drewmercResume"

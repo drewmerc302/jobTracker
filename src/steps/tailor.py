@@ -86,7 +86,7 @@ def reorder_resume_yaml(resume_data: dict, reorder_map: dict) -> dict:
 def llm_resume_analysis(resume_yaml_str: str, job_description: str, config: Config) -> dict:
     client = anthropic.Anthropic(api_key=config.anthropic_api_key)
     response = client.messages.create(
-        model=config.llm_model,
+        model=config.llm_tailor_model,
         max_tokens=4096,
         tools=[ANALYSIS_TOOL],
         tool_choice={"type": "tool", "name": "resume_analysis"},

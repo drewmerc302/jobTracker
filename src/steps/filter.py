@@ -55,7 +55,7 @@ def keyword_filter(jobs: list[dict], config: Config) -> list[dict]:
 def llm_evaluate(job: dict, resume_summary: str, config: Config) -> dict:
     client = anthropic.Anthropic(api_key=config.anthropic_api_key)
     response = client.messages.create(
-        model=config.llm_model,
+        model=config.llm_filter_model,
         max_tokens=1024,
         tools=[EVAL_TOOL],
         tool_choice={"type": "tool", "name": "evaluate_job"},
