@@ -228,14 +228,14 @@ def run_pipeline(args):
             print("No matches found.")
             return
         print(
-            f"{'Score':>5}  {'PDF':>3}  {'Status':<12} {'Company':<12} {'Title':<35} {'Tailor Command'}"
+            f"{'Score':>5}  {'PDF':>3}  {'Status':<12} {'Company':<12} {'Title':<35} {'Show Command'}"
         )
         print("-" * 115)
         for r in rows:
             job_id, company, title, location, score, has_pdf, status = r
             title_display = title[:33] + ".." if len(title) > 35 else title
             print(
-                f'{score:>5.0%}  {has_pdf:>3}  {status:<12} {company:<12} {title_display:<35} uv run jobtracker --tailor-job "{job_id}"'
+                f'{score:>5.0%}  {has_pdf:>3}  {status:<12} {company:<12} {title_display:<35} uv run jobtracker --show-job "{job_id}"'
             )
         return
 

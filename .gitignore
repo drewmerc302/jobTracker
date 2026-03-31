@@ -4,3 +4,6 @@ output/
 __pycache__/
 *.pyc
 .venv/
+.DS_Store
+.claude/worktrees/
+docs/superpowers/**/*.tasks.json
