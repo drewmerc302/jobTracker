@@ -1,9 +1,14 @@
 .env
 data/
 output/
+outputs/
 __pycache__/
 *.pyc
 .venv/
 .DS_Store
+.pytest_cache/
+.ruff_cache/
 .claude/worktrees/
+.claude/superpowers/
+.claude/settings.local.json
 docs/superpowers/**/*.tasks.json
