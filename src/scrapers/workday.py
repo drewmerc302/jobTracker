@@ -4,7 +4,12 @@ import time
 from datetime import datetime, timezone
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 from .base import BaseScraper, RawJob
 
@@ -18,54 +23,64 @@ _http_retry = retry(
 )
 
 
-MANAGER_KEYWORDS = [
-    "engineering manager", "manager of engineering", "director of engineering",
-    "head of engineering", "software engineering manager", "technical manager",
-    "engineering lead", "development manager",
-]
-
-
-def _title_matches_manager(title: str) -> bool:
-    title_lower = title.lower()
-    return any(kw in title_lower for kw in MANAGER_KEYWORDS)
-
-
 class WorkdayScraper(BaseScraper):
-    def __init__(self, company_name: str, base_url: str, path: str):
+    def __init__(
+        self,
+        company_name: str,
+        base_url: str,
+        path: str,
+        keyword_patterns: list[str] | None = None,
+    ):
         self.company_name = company_name
         self.base_url = base_url
         self.path = path
         self.page_size = 20
         self.request_delay = 1.5
+        self.keyword_patterns = keyword_patterns or []
+
+    def _title_matches(self, title: str) -> bool:
+        title_lower = title.lower()
+        return any(kw in title_lower for kw in self.keyword_patterns)
 
     def fetch_jobs(self) -> list[RawJob]:
         try:
             with httpx.Client(
                 timeout=30,
-                headers={"User-Agent": "JobTracker/1.0", "Content-Type": "application/json"},
+                headers={
+                    "User-Agent": "JobTracker/1.0",
+                    "Content-Type": "application/json",
+                },
             ) as client:
                 listings = self._fetch_all_listings(client)
                 logger.info(f"Found {len(listings)} listings for {self.company_name}")
 
                 # Only fetch detail pages for manager-relevant titles
-                relevant = [l for l in listings if _title_matches_manager(l["title"])]
-                logger.info(f"  {len(relevant)} match manager keywords, fetching details")
+                relevant = [l for l in listings if self._title_matches(l["title"])]
+                logger.info(
+                    f"  {len(relevant)} match manager keywords, fetching details"
+                )
 
                 jobs = []
                 now = datetime.now(timezone.utc)
-                # Store all listings as basic records (for tracking/dedup)
+                # Store non-relevant listings as basic records (for tracking/dedup)
                 for listing in listings:
                     if listing in relevant:
-                        continue  # Will be fetched with detail below
-                    jobs.append(RawJob(
-                        external_id=listing["external_id"],
-                        company=self.company_name,
-                        title=listing["title"],
-                        url=f"{self.base_url}{self.path}/{listing.get('external_path', '')}",
-                        location=listing.get("location"),
-                        remote=None, salary=None, description=None,
-                        department=None, seniority=None, scraped_at=now,
-                    ))
+                        continue
+                    jobs.append(
+                        RawJob(
+                            external_id=listing["external_id"],
+                            company=self.company_name,
+                            title=listing["title"],
+                            url=f"{self.base_url}{self.path}/{listing.get('external_path', '')}",
+                            location=listing.get("location"),
+                            remote=None,
+                            salary=None,
+                            description=None,
+                            department=None,
+                            seniority=None,
+                            scraped_at=now,
+                        )
+                    )
 
                 # Fetch full details only for relevant titles
                 for i, listing in enumerate(relevant):
@@ -85,13 +100,16 @@ class WorkdayScraper(BaseScraper):
         offset = 0
         while True:
             url = f"{self.base_url}{self.path}/jobs"
-            resp = client.post(url, json={
-                "appliedFacets": {},
-                "limit": self.page_size,
-                "offset": offset,
-                "searchText": "manager",
-            })
-            resp.raise_for_status()
+            resp = self._post_listings_page(
+                client,
+                url,
+                {
+                    "appliedFacets": {},
+                    "limit": self.page_size,
+                    "offset": offset,
+                    "searchText": "engineering manager",
+                },
+            )
             data = resp.json()
             listings = self._parse_search_results(data)
             all_listings.extend(listings)
@@ -102,25 +120,44 @@ class WorkdayScraper(BaseScraper):
             time.sleep(self.request_delay)
         return all_listings
 
+    @_http_retry
+    def _post_listings_page(
+        self, client: httpx.Client, url: str, payload: dict
+    ) -> httpx.Response:
+        resp = client.post(url, json=payload)
+        resp.raise_for_status()
+        return resp
+
+    @_http_retry
+    def _get_detail_page(self, client: httpx.Client, url: str) -> httpx.Response:
+        resp = client.get(url)
+        resp.raise_for_status()
+        return resp
+
     def _parse_search_results(self, data: dict) -> list[dict]:
         results = []
         for posting in data.get("jobPostings", []):
-            results.append({
-                "external_id": (posting.get("bulletFields") or [""])[0],
-                "title": posting.get("title", ""),
-                "external_path": posting.get("externalPath", ""),
-                "location": posting.get("locationsText"),
-            })
+            ext_path = posting.get("externalPath", "")
+            raw_id = (posting.get("bulletFields") or [""])[0]
+            # Fall back to last path segment if bulletFields is empty
+            external_id = raw_id or ext_path.split("/")[-1] or ext_path
+            results.append(
+                {
+                    "external_id": external_id,
+                    "title": posting.get("title", ""),
+                    "external_path": ext_path,
+                    "location": posting.get("locationsText"),
+                }
+            )
         return results
 
     def _fetch_detail(self, client: httpx.Client, listing: dict) -> RawJob | None:
         path = listing.get("external_path", "")
         if not path:
             return None
+        url = f"{self.base_url}{self.path}/{path}"
         try:
-            url = f"{self.base_url}{self.path}/{path}"
-            resp = client.get(url)
-            resp.raise_for_status()
+            resp = self._get_detail_page(client, url)
             return self._parse_detail(resp.json(), listing["external_id"])
         except Exception as e:
             logger.warning(f"Failed to fetch detail for {listing['external_id']}: {e}")
@@ -129,10 +166,14 @@ class WorkdayScraper(BaseScraper):
                 external_id=listing["external_id"],
                 company=self.company_name,
                 title=listing["title"],
-                url=f"{self.base_url}{self.path}/{path}",
+                url=url,
                 location=listing.get("location"),
-                remote=None, salary=None, description=None,
-                department=None, seniority=None, scraped_at=now,
+                remote=None,
+                salary=None,
+                description=None,
+                department=None,
+                seniority=None,
+                scraped_at=now,
             )
 
     def _parse_detail(self, data: dict, external_id: str) -> RawJob:

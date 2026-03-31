@@ -58,6 +58,7 @@ class Config:
                 "display_name": "Stripe",
                 "url_template": "https://stripe.com/jobs/listing/{slug}/{id}",
             },
+            "gitlab": {"display_name": "GitLab"},
         }
     )
     workday_companies: dict[str, dict] = field(
@@ -66,6 +67,11 @@ class Config:
                 "display_name": "Capital One",
                 "base_url": "https://capitalone.wd12.myworkdayjobs.com",
                 "path": "/wday/cxs/capitalone/Capital_One",
+            },
+            "netflix": {
+                "display_name": "Netflix",
+                "base_url": "https://netflix.wd1.myworkdayjobs.com",
+                "path": "/wday/cxs/netflix/netflix",
             },
         }
     )

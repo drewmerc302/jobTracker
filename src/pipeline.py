@@ -26,7 +26,7 @@ def parse_args(argv=None):
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Run scrape + filter only, skip tailor + notify",
+        help="Run scrape + filter only, skip notify",
     )
     parser.add_argument(
         "--renotify", action="store_true", help="Re-send last failed email digest"
@@ -72,6 +72,9 @@ def parse_args(argv=None):
 
 
 def build_scrapers(config: Config) -> list:
+    from src.scrapers.apple import AppleScraper
+    from src.scrapers.google import GoogleScraper
+
     scrapers = []
     for slug, info in config.greenhouse_boards.items():
         scrapers.append(
@@ -87,8 +90,11 @@ def build_scrapers(config: Config) -> list:
                 company_name=info["display_name"],
                 base_url=info["base_url"],
                 path=info["path"],
+                keyword_patterns=config.keyword_patterns,
             )
         )
+    scrapers.append(AppleScraper())
+    scrapers.append(GoogleScraper())
     return scrapers
 
 
@@ -417,7 +423,7 @@ def run_pipeline(args):
             matches = []
 
         if args.dry_run:
-            logger.info("Dry run -- skipping tailor and notify")
+            logger.info("Dry run -- skipping notify")
             db.complete_run(
                 run_id,
                 jobs_scraped=scrape_result["jobs_scraped"],
@@ -427,24 +433,23 @@ def run_pipeline(args):
             )
             return
 
-        # Step 3: Tailor
-        run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M")
-        output_dir = config.output_dir / run_date
-        if not args.step or args.step == "tailor":
-            if args.step == "tailor" and not matches:
-                unnotified = db.get_unnotified_matches()
-                matches = [
-                    {
-                        "job": dict(m),
-                        "evaluation": json.loads(m.get("suggestions") or "{}"),
-                    }
-                    for m in unnotified
-                    if not m.get("resume_path")
-                ]
-                logger.info(
-                    f"Tailor standalone: found {len(matches)} untailored matches"
-                )
-            for match in matches:
+        # Step 3: Tailor (standalone only — not run automatically)
+        if args.step == "tailor":
+            run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M")
+            output_dir = config.output_dir / run_date
+            unnotified = db.get_unnotified_matches()
+            tailor_matches = [
+                {
+                    "job": dict(m),
+                    "evaluation": json.loads(m.get("suggestions") or "{}"),
+                }
+                for m in unnotified
+                if not m.get("resume_path")
+            ]
+            logger.info(
+                f"Tailor standalone: found {len(tailor_matches)} untailored matches"
+            )
+            for match in tailor_matches:
                 try:
                     run_tailor_for_job(
                         job=match["job"],
@@ -457,15 +462,14 @@ def run_pipeline(args):
                     )
                 except Exception as e:
                     logger.error(f"Tailor failed for {match['job']['id']}: {e}")
-            if args.step == "tailor":
-                db.complete_run(
-                    run_id,
-                    jobs_scraped=0,
-                    new_jobs=0,
-                    matches_found=len(matches),
-                    email_sent=False,
-                )
-                return
+            db.complete_run(
+                run_id,
+                jobs_scraped=0,
+                new_jobs=0,
+                matches_found=len(tailor_matches),
+                email_sent=False,
+            )
+            return
 
         # Step 4: Notify
         duration = f"{time.time() - start_time:.1f}s"

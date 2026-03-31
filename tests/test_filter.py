@@ -1,10 +1,8 @@
-import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
-import pytest
 
 from src.config import Config
-from src.steps.filter import keyword_filter, llm_evaluate, run_filter
+from src.steps.filter import keyword_filter, llm_evaluate
 
 
 def test_keyword_filter_matches():
@@ -34,10 +32,8 @@ def test_keyword_filter_skips_no_description():
     assert matches[0]["id"] == "2"
 
 
-@patch("src.steps.filter.anthropic")
-def test_llm_evaluate_returns_structured_result(mock_anthropic):
+def test_llm_evaluate_returns_structured_result():
     mock_client = MagicMock()
-    mock_anthropic.Anthropic.return_value = mock_client
 
     tool_result = {
         "relevant": True,
@@ -57,9 +53,16 @@ def test_llm_evaluate_returns_structured_result(mock_anthropic):
     config = Config()
     config.anthropic_api_key = "test-key"
     result = llm_evaluate(
-        job={"title": "EM", "company": "Dropbox", "description": "Lead team", "location": "Remote", "salary": "200k"},
+        job={
+            "title": "EM",
+            "company": "Dropbox",
+            "description": "Lead team",
+            "location": "Remote",
+            "salary": "200k",
+        },
         resume_summary="Experienced EM with 10 years...",
         config=config,
+        client=mock_client,
     )
     assert result["relevant"] is True
     assert result["score"] == 0.85

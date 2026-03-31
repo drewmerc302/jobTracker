@@ -109,6 +109,8 @@ class Database:
                 now,
             ),
         )
+
+    def commit(self):
         self._conn.commit()
 
     def get_job(self, job_id: str) -> dict | None:
