@@ -1,0 +1,15 @@
+#!/usr/bin/env perl
+# Strip ANSI escape codes from commit messages before they're saved.
+use strict;
+use warnings;
+
+my $file = $ARGV[0];
+open my $fh, '<', $file or die "Cannot open $file: $!";
+my $msg = do { local $/; <$fh> };
+close $fh;
+
+$msg =~ s/\x1b\[[0-9;]*[A-Za-z]//g;
+
+open $fh, '>', $file or die "Cannot write $file: $!";
+print $fh $msg;
+close $fh;
