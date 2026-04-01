@@ -69,6 +69,32 @@ def parse_args(argv=None):
     parser.add_argument(
         "--applications", action="store_true", help="Show application status dashboard"
     )
+    parser.add_argument(
+        "--follow-ups",
+        action="store_true",
+        help="List applications with overdue follow-up dates",
+    )
+    parser.add_argument(
+        "--followed-up",
+        metavar="JOB_ID",
+        help="Mark a job as followed up and reset follow-up date",
+    )
+    parser.add_argument(
+        "--set-followup",
+        nargs=2,
+        metavar=("JOB_ID", "DATE"),
+        help='Set follow-up date for a job (e.g. --set-followup "Stripe:123" 2026-05-01)',
+    )
+    parser.add_argument(
+        "--interview-prep",
+        metavar="JOB_ID",
+        help="Generate interview prep note for a job",
+    )
+    parser.add_argument(
+        "--research",
+        action="store_true",
+        help="Add web research when generating interview prep (use with --interview-prep)",
+    )
     return parser.parse_args(argv)
 
 
@@ -220,6 +246,45 @@ def run_pipeline(args):
             else:
                 date_info = ""
             print(f"  {score:>5}  {company:<12} {title:<40} {date_info}")
+        return
+
+    if args.follow_ups:
+        overdue = db.get_overdue_follow_ups()
+        if not overdue:
+            print("No overdue follow-ups.")
+            return
+        print(
+            f"\n{'Company':<14} {'Title':<38} {'Status':<14} {'Applied':<12} {'Overdue':>8}  Follow-up date"
+        )
+        print("-" * 100)
+        for f in overdue:
+            applied = (f.get("applied_date") or "")[:10]
+            days = int(f.get("days_overdue") or 0)
+            print(
+                f"  {f['company']:<12} {f['title'][:36]:<38} {f['status']:<14} {applied:<12} {days:>6}d  {f['follow_up_after']}"
+            )
+        return
+
+    if args.followed_up:
+        job_id = args.followed_up
+        job = db.get_job(job_id)
+        if not job:
+            logger.error(f"Job not found: {job_id}")
+            return
+        db.mark_followed_up(job_id)
+        print(
+            f"Followed up: {job['company']} — {job['title']}. Next follow-up reset to +7 days if date was set."
+        )
+        return
+
+    if args.set_followup:
+        job_id, date_str = args.set_followup
+        job = db.get_job(job_id)
+        if not job:
+            logger.error(f"Job not found: {job_id}")
+            return
+        db.set_follow_up_date(job_id, date_str)
+        print(f"Follow-up date set: {job['company']} — {job['title']} → {date_str}")
         return
 
     if args.list_matches:

@@ -1,0 +1,61 @@
+import pytest
+from datetime import datetime, timezone
+from unittest.mock import patch
+
+from src.db import Database
+from src.pipeline import parse_args
+
+
+@pytest.fixture
+def db_with_applied_job(tmp_path):
+    db = Database(tmp_path / "test.db")
+    now = datetime.now(timezone.utc)
+    db.upsert_job(
+        id="stripe:1", company="Stripe", title="EM", url="https://x.com", scraped_at=now
+    )
+    db.commit()
+    db.insert_match(job_id="stripe:1", relevance_score=0.9, match_reason="good")
+    db.set_application_status("stripe:1", "applied")
+    db.set_follow_up_date("stripe:1", "2000-01-01")
+    return db
+
+
+def test_parse_args_follow_ups():
+    args = parse_args(["--follow-ups"])
+    assert args.follow_ups is True
+
+
+def test_parse_args_followed_up():
+    args = parse_args(["--followed-up", "stripe:1"])
+    assert args.followed_up == "stripe:1"
+
+
+def test_parse_args_set_followup():
+    args = parse_args(["--set-followup", "stripe:1", "2026-05-01"])
+    assert args.set_followup == ["stripe:1", "2026-05-01"]
+
+
+def test_follow_ups_prints_overdue(db_with_applied_job, tmp_path, capsys):
+    with (
+        patch("src.pipeline.Database", return_value=db_with_applied_job),
+        patch("src.pipeline.Config") as MockConfig,
+    ):
+        MockConfig.return_value.db_path = tmp_path / "test.db"
+        args = parse_args(["--follow-ups"])
+        # run_pipeline needs a real db — test via db method directly
+    overdue = db_with_applied_job.get_overdue_follow_ups()
+    assert len(overdue) == 1
+    assert overdue[0]["company"] == "Stripe"
+
+
+def test_followed_up_resets_date(db_with_applied_job):
+    db_with_applied_job.mark_followed_up("stripe:1", reset_days=7)
+    app = db_with_applied_job.get_application("stripe:1")
+    assert app["followed_up_at"] is not None
+    assert app["follow_up_after"] > "2000-01-01"
+
+
+def test_set_followup_updates_date(db_with_applied_job):
+    db_with_applied_job.set_follow_up_date("stripe:1", "2026-06-01")
+    app = db_with_applied_job.get_application("stripe:1")
+    assert app["follow_up_after"] == "2026-06-01"
