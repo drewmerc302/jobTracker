@@ -1,48 +1,20 @@
 <!DOCTYPE html>
 <html>
-<head>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #333; max-width: 700px; margin: 0 auto; padding: 20px; }
-  h1 { color: #1a1a2e; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }
-  h2 { color: #16213e; margin-top: 30px; }
-  .summary-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-  .summary-table th, .summary-table td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
-  .summary-table th { background: #f5f5f5; }
-  .score { font-weight: bold; }
-  .score-high { color: #2e7d32; }
-  .score-med { color: #f57f17; }
-  .job-section { border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0; }
-  .job-header { margin: 0 0 10px 0; }
-  .meta { color: #666; font-size: 0.9em; }
-  .section-label { font-weight: bold; color: #16213e; margin-top: 15px; }
-  .edit-item { background: #f9f9f9; padding: 10px; border-radius: 4px; margin: 8px 0; }
-  .edit-original { color: #c62828; text-decoration: line-through; }
-  .edit-suggested { color: #2e7d32; }
-  .edit-reason { color: #666; font-size: 0.85em; font-style: italic; }
-  .keyword-gap { display: inline-block; background: #fff3e0; padding: 2px 8px; border-radius: 4px; margin: 2px; font-size: 0.85em; }
-  .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #e0e0e0; color: #999; font-size: 0.85em; }
-  a { color: #1565c0; }
-  .followup-section { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 16px; margin: 16px 0; }
-  .followup-section h2 { color: #e65100; margin: 0 0 10px 0; font-size: 1em; }
-  .followup-table { width: 100%; border-collapse: collapse; }
-  .followup-table td { padding: 6px 10px; border-bottom: 1px solid #ffe082; font-size: 0.9em; }
-  .overdue-badge { background: #e65100; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.8em; }
-</style>
-</head>
-<body>
+<head></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #333; max-width: 700px; margin: 0 auto; padding: 20px;">
 
-<h1>Job Tracker Digest &mdash; {{ date }}</h1>
+<h1 style="color: #1a1a2e; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px;">Job Tracker Digest &mdash; {{ date }}</h1>
 
 {% if follow_ups %}
-<div class="followup-section">
-  <h2>&#128276; Follow Up Today ({{ follow_ups|length }})</h2>
-  <table class="followup-table">
+<div style="background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 16px; margin: 16px 0;">
+  <h2 style="color: #e65100; margin: 0 0 10px 0; font-size: 1em;">&#128276; Follow Up Today ({{ follow_ups|length }})</h2>
+  <table style="width: 100%; border-collapse: collapse;">
   {% for f in follow_ups %}
   <tr>
-    <td>{{ f.company }}</td>
-    <td>{{ f.title }}</td>
-    <td><span class="overdue-badge">{{ f.days_overdue|int }}d overdue</span></td>
-    <td><a href="{{ f.url }}">View listing</a></td>
+    <td style="padding: 6px 10px; border-bottom: 1px solid #ffe082; font-size: 0.9em;">{{ f.company }}</td>
+    <td style="padding: 6px 10px; border-bottom: 1px solid #ffe082; font-size: 0.9em;">{{ f.title }}</td>
+    <td style="padding: 6px 10px; border-bottom: 1px solid #ffe082; font-size: 0.9em;"><span style="background: #e65100; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.8em;">{{ f.days_overdue|int }}d overdue</span></td>
+    <td style="padding: 6px 10px; border-bottom: 1px solid #ffe082; font-size: 0.9em;"><a href="{{ f.url }}" style="color: #1565c0;">View listing</a></td>
   </tr>
   {% endfor %}
   </table>
@@ -52,37 +24,43 @@
 {% if matches %}
 <p><strong>{{ matches|length }}</strong> new match{{ 'es' if matches|length > 1 else '' }} found.</p>
 
-<table class="summary-table">
-<tr><th>Company</th><th>Title</th><th>Location</th><th>Salary</th><th>Score</th></tr>
+<table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+<tr>
+  <th style="border: 1px solid #ddd; padding: 8px 12px; text-align: left; background: #f5f5f5;">Company</th>
+  <th style="border: 1px solid #ddd; padding: 8px 12px; text-align: left; background: #f5f5f5;">Title</th>
+  <th style="border: 1px solid #ddd; padding: 8px 12px; text-align: left; background: #f5f5f5;">Location</th>
+  <th style="border: 1px solid #ddd; padding: 8px 12px; text-align: left; background: #f5f5f5;">Salary</th>
+  <th style="border: 1px solid #ddd; padding: 8px 12px; text-align: left; background: #f5f5f5;">Score</th>
+</tr>
 {% for m in matches %}
 <tr>
-  <td>{{ m.company }}</td>
-  <td><a href="{{ m.url }}">{{ m.title }}</a></td>
-  <td>{{ m.location or 'N/A' }}</td>
-  <td>{{ m.salary or 'N/A' }}</td>
-  <td class="score {{ 'score-high' if m.relevance_score >= 0.8 else 'score-med' }}">{{ '%.0f'|format(m.relevance_score * 100) }}%</td>
+  <td style="border: 1px solid #ddd; padding: 8px 12px; text-align: left;">{{ m.company }}</td>
+  <td style="border: 1px solid #ddd; padding: 8px 12px; text-align: left;"><a href="{{ m.url }}" style="color: #1565c0;">{{ m.title }}</a></td>
+  <td style="border: 1px solid #ddd; padding: 8px 12px; text-align: left;">{{ m.location or 'N/A' }}</td>
+  <td style="border: 1px solid #ddd; padding: 8px 12px; text-align: left;">{{ m.salary or 'N/A' }}</td>
+  <td style="border: 1px solid #ddd; padding: 8px 12px; text-align: left; font-weight: bold; color: {{ '#2e7d32' if m.relevance_score >= 0.8 else '#f57f17' }};">{{ '%.0f'|format(m.relevance_score * 100) }}%</td>
 </tr>
 {% endfor %}
 </table>
 
 {% for m in matches %}
-<div class="job-section">
-  <h2 class="job-header">{{ m.company }} &mdash; {{ m.title }}</h2>
-  <p class="meta">
+<div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+  <h2 style="color: #16213e; margin: 0 0 10px 0;">{{ m.company }} &mdash; {{ m.title }}</h2>
+  <p style="color: #666; font-size: 0.9em;">
     Score: {{ '%.0f'|format(m.relevance_score * 100) }}% |
     Location: {{ m.location or 'N/A' }} |
     Salary: {{ m.salary or 'N/A' }}<br>
-    <a href="{{ m.url }}">View Listing</a>
+    <a href="{{ m.url }}" style="color: #1565c0;">View Listing</a>
   </p>
 
-  <p class="section-label">View analysis &amp; generate resume/cover letter:</p>
+  <p style="font-weight: bold; color: #16213e; margin-top: 15px;">View analysis &amp; generate resume/cover letter:</p>
   <code style="background: #f5f5f5; padding: 4px 8px; border-radius: 4px; font-size: 0.85em;">uv run jobtracker --show-job "{{ m.job_id }}"</code>
 
-  <p class="section-label">Why this matches:</p>
+  <p style="font-weight: bold; color: #16213e; margin-top: 15px;">Why this matches:</p>
   <p>{{ m.match_reason }}</p>
 
   {% if m.suggestions_parsed.key_requirements %}
-  <p class="section-label">Key requirements:</p>
+  <p style="font-weight: bold; color: #16213e; margin-top: 15px;">Key requirements:</p>
   <ul>
   {% for req in m.suggestions_parsed.key_requirements %}
     <li>{{ req }}</li>
@@ -91,7 +69,7 @@
   {% endif %}
 
   {% if m.suggestions_parsed.interview_talking_points %}
-  <p class="section-label">Interview talking points:</p>
+  <p style="font-weight: bold; color: #16213e; margin-top: 15px;">Interview talking points:</p>
   <ul>
   {% for tp in m.suggestions_parsed.interview_talking_points %}
     <li>{{ tp }}</li>
@@ -100,23 +78,23 @@
   {% endif %}
 
   {% if m.suggestions_parsed.suggested_edits %}
-  <p class="section-label">Suggested resume edits:</p>
+  <p style="font-weight: bold; color: #16213e; margin-top: 15px;">Suggested resume edits:</p>
   {% for edit in m.suggestions_parsed.suggested_edits %}
-  <div class="edit-item">
-    <span class="edit-original">{{ edit.original }}</span><br>
-    <span class="edit-suggested">{{ edit.suggested }}</span><br>
-    <span class="edit-reason">{{ edit.reason }}</span>
+  <div style="background: #f9f9f9; padding: 10px; border-radius: 4px; margin: 8px 0;">
+    <span style="color: #c62828; text-decoration: line-through;">{{ edit.original }}</span><br>
+    <span style="color: #2e7d32;">{{ edit.suggested }}</span><br>
+    <span style="color: #666; font-size: 0.85em; font-style: italic;">{{ edit.reason }}</span>
   </div>
   {% endfor %}
   {% endif %}
 
   {% if m.suggestions_parsed.keyword_gaps %}
-  <p class="section-label">Keyword gaps:</p>
-  <p>{% for kw in m.suggestions_parsed.keyword_gaps %}<span class="keyword-gap">{{ kw }}</span>{% endfor %}</p>
+  <p style="font-weight: bold; color: #16213e; margin-top: 15px;">Keyword gaps:</p>
+  <p>{% for kw in m.suggestions_parsed.keyword_gaps %}<span style="display: inline-block; background: #fff3e0; padding: 2px 8px; border-radius: 4px; margin: 2px; font-size: 0.85em;">{{ kw }}</span>{% endfor %}</p>
   {% endif %}
 
   {% if m.resume_path or m.cover_letter_path %}
-  <p class="section-label">Attachments:</p>
+  <p style="font-weight: bold; color: #16213e; margin-top: 15px;">Attachments:</p>
   <p>
     {% if m.resume_path %}Resume PDF attached{% endif %}
     {% if m.resume_path and m.cover_letter_path %} | {% endif %}
@@ -130,7 +108,7 @@
 <p>No new matches found this run.</p>
 {% endif %}
 
-<div class="footer">
+<div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e0e0e0; color: #999; font-size: 0.85em;">
   <p>
     Jobs scraped: {{ run_stats.jobs_scraped }} |
     New jobs: {{ run_stats.new_jobs }} |
