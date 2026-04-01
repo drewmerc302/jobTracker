@@ -31,6 +31,15 @@ def test_patch_obsidian_section_replaces_existing():
     assert "## Notes\nmore" in result
 
 
+def test_patch_obsidian_section_replaces_with_blank_line_separator():
+    """Standard markdown has blank lines between sections."""
+    note = "# Title\n\n## Some Section\ncontent\n\n## Interview Prep\nold content\n\n## Notes\nmore"
+    result = _patch_obsidian_section(note, "## Interview Prep", "new content")
+    assert "old content" not in result
+    assert "new content" in result
+    assert "## Notes\nmore" in result
+
+
 def test_patch_obsidian_section_appends_if_missing():
     note = "# Title\n\n## Notes\ncontent"
     result = _patch_obsidian_section(note, "## Interview Prep", "new content")

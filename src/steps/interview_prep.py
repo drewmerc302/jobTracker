@@ -124,7 +124,9 @@ def _write_obsidian_note(path: str, content: str):
 
 def _patch_obsidian_section(note: str, section_header: str, new_content: str) -> str:
     """Replace section_header block in note with new_content, or append if missing."""
-    pattern = re.compile(rf"({re.escape(section_header)})\n.*?(?=\n## |\Z)", re.DOTALL)
+    pattern = re.compile(
+        rf"({re.escape(section_header)})\n.*?(?=\n\n## |\n## |\Z)", re.DOTALL
+    )
     replacement = f"{section_header}\n{new_content}"
     if pattern.search(note):
         return pattern.sub(replacement, note)
