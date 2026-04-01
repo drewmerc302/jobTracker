@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from unittest.mock import patch
 
 from src.db import Database
-from src.pipeline import parse_args
+from src.pipeline import parse_args, run_pipeline
 
 
 @pytest.fixture
@@ -59,3 +59,33 @@ def test_set_followup_updates_date(db_with_applied_job):
     db_with_applied_job.set_follow_up_date("stripe:1", "2026-06-01")
     app = db_with_applied_job.get_application("stripe:1")
     assert app["follow_up_after"] == "2026-06-01"
+
+
+def test_follow_ups_command_output(tmp_path, capsys):
+    """--follow-ups handler in run_pipeline() outputs the overdue table correctly."""
+    db = Database(tmp_path / "fu_test.db")
+    now = datetime.now(timezone.utc)
+    db.upsert_job(
+        id="stripe:99",
+        company="Stripe",
+        title="EM",
+        url="https://x.com",
+        scraped_at=now,
+    )
+    db.commit()
+    db.insert_match(job_id="stripe:99", relevance_score=0.9, match_reason="good")
+    db.set_application_status("stripe:99", "applied")
+    db.set_follow_up_date("stripe:99", "2000-01-01")
+
+    with (
+        patch("src.pipeline.Database", return_value=db),
+        patch("src.pipeline.Config") as MockConfig,
+    ):
+        MockConfig.return_value.db_path = tmp_path / "fu_test.db"
+        args = parse_args(["--follow-ups"])
+        run_pipeline(args)
+
+    captured = capsys.readouterr()
+    assert "Stripe" in captured.out
+    assert "applied" in captured.out
+    assert "2000-01-01" in captured.out
