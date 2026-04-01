@@ -1,0 +1,91 @@
+import pytest
+from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
+
+from src.db import Database
+from src.steps.interview_prep import generate_interview_prep, _patch_obsidian_section
+
+
+@pytest.fixture
+def db(tmp_path):
+    db = Database(tmp_path / "test.db")
+    now = datetime.now(timezone.utc)
+    db.upsert_job(
+        id="stripe:1",
+        company="Stripe",
+        title="EM, Platform",
+        url="https://stripe.com/jobs/1",
+        description="We need an EM to lead Platform engineering...",
+        scraped_at=now,
+    )
+    db.commit()
+    db.insert_match(job_id="stripe:1", relevance_score=0.9, match_reason="good match")
+    return db
+
+
+def test_patch_obsidian_section_replaces_existing():
+    note = "# Title\n\n## Some Section\ncontent\n\n## Interview Prep\nold content\n\n## Notes\nmore"
+    result = _patch_obsidian_section(note, "## Interview Prep", "new content")
+    assert "old content" not in result
+    assert "new content" in result
+    assert "## Notes\nmore" in result
+
+
+def test_patch_obsidian_section_appends_if_missing():
+    note = "# Title\n\n## Notes\ncontent"
+    result = _patch_obsidian_section(note, "## Interview Prep", "new content")
+    assert "## Interview Prep" in result
+    assert "new content" in result
+
+
+def test_generate_interview_prep_calls_llm(db, tmp_path):
+    mock_response = MagicMock()
+    mock_tool_use = MagicMock()
+    mock_tool_use.type = "tool_use"
+    mock_tool_use.input = {
+        "likely_questions": ["Tell me about a time you dealt with ambiguity"],
+        "star_stories": [
+            {
+                "question": "Tell me about a time you dealt with ambiguity",
+                "resume_bullet": "Led platform migration",
+                "situation": "S",
+                "task": "T",
+                "action": "A",
+                "result": "R",
+            }
+        ],
+        "talking_points": ["Deep platform experience", "Cross-functional leadership"],
+        "red_flags": ["Limited ML experience"],
+    }
+    mock_response.content = [mock_tool_use]
+    mock_response.stop_reason = "tool_use"
+
+    fake_resume = {
+        "experience": [
+            {"company": "Acme", "title": "EM", "bullets": ["Led platform migration"]}
+        ]
+    }
+
+    with (
+        patch("src.steps.interview_prep.anthropic.Anthropic") as MockAnthropic,
+        patch(
+            "src.steps.interview_prep.get_active_resume_yaml",
+            return_value=(tmp_path / "r.yaml", fake_resume),
+        ),
+        patch(
+            "src.steps.interview_prep._read_obsidian_note",
+            return_value="# Stripe — EM, Platform\n\n## Interview Prep\n\n## Notes\n",
+        ),
+        patch("src.steps.interview_prep._write_obsidian_note") as mock_write,
+    ):
+        MockAnthropic.return_value.messages.create.return_value = mock_response
+        generate_interview_prep(db, "stripe:1")
+        assert mock_write.called
+        written_content = mock_write.call_args[0][1]
+        assert "Tell me about a time" in written_content
+        assert "Deep platform experience" in written_content
+
+
+def test_generate_interview_prep_handles_missing_job(db):
+    """Should not raise if job not found."""
+    generate_interview_prep(db, "nonexistent:999")  # should not raise
