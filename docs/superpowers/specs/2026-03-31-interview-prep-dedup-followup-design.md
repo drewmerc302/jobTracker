@@ -20,7 +20,9 @@ Three independent features added to the jobTracker pipeline:
 
 ### Trigger
 
-In `src/steps/obsidian.py`, the `update_status()` function handles status transitions. When the new status is `interviewing`, call `generate_interview_prep(db, job_id)` before returning. This is synchronous — acceptable latency given LLM calls already occur in the pipeline.
+In `src/pipeline.py`, the `--status` and `--track` CLI handlers call `db.set_application_status()`. After a successful status transition to `interviewing`, call `generate_interview_prep(db, job_id)`. This is synchronous — acceptable latency given LLM calls already occur in the pipeline.
+
+The `src/steps/obsidian.py` module handles note writing only and is not involved in status logic.
 
 ### New File: `src/steps/interview_prep.py`
 
@@ -35,17 +37,17 @@ Single public function: `generate_interview_prep(db, job_id, research=False)`.
    - `talking_points` — 3–5 things to emphasize about your background for this role
    - `red_flags` — gaps or weaknesses relative to the JD to prepare for
 4. If `research=True`: web search for `"{company} engineering culture {year}"`, summarize top results, pass as additional context to the Claude call
-5. Write/patch the `## Interview Prep` section of the Obsidian application note with the generated content
+5. **Section-level patch of the Obsidian note:** read the existing application note via MCP, locate the `## Interview Prep` section, replace only that section's content with the generated output, write the full note back. This preserves all other manually-edited content (salary notes, contacts, personal notes). If no `## Interview Prep` section exists, append it.
 
 ### CLI
 
-- `--interview-prep "Company:id"` — trigger manually (no research)
+- `--interview-prep "Company:id"` — trigger manually (no research). Add `--research` as a standalone boolean flag in argparse.
 - `--interview-prep "Company:id" --research` — trigger with web research
 - Status change to `interviewing` (via `--status` or `--track`) — auto-triggers without `--research`
 
 ### Error Handling
 
-If the Claude call fails, log the error and continue — status transition completes regardless. Prep generation is best-effort.
+If the Claude call fails, log the error and continue — status transition completes regardless. Prep generation is best-effort. If the Obsidian note does not exist yet, create it before patching.
 
 ---
 
@@ -61,11 +63,12 @@ Two jobs are duplicates if they share the same `(company, normalized_title)` aft
 
 **Normalization:**
 - Strip seniority prefixes/suffixes: `Sr.`, `Senior`, `Junior`, `Staff`, `Principal`, `Lead`
-- Strip roman numerals: `I`, `II`, `III`
-- Strip punctuation and extra whitespace
+- Strip roman numerals only when they appear as standalone trailing tokens: ` I`, ` II`, ` III`
+- Strip punctuation (commas, hyphens, periods) and extra whitespace
 - Lowercase
+- **Preserve department/team suffixes** (e.g., `Growth`, `Platform`, `Infrastructure`) — these are part of the match key. `"Engineering Manager, Growth"` and `"Engineering Manager, Platform"` are NOT duplicates.
 
-Example: `"Senior Engineering Manager, Growth"` and `"Engineering Manager - Growth"` → same normalized form.
+Example of a true duplicate: `"Senior Engineering Manager"` and `"Engineering Manager"` → both normalize to `"engineering manager"`.
 
 ### Merge Strategy
 
@@ -79,10 +82,14 @@ Highest score wins. Tie-break: keep earliest `first_seen_at`.
 
 ### FK Safety
 
-Before removing a duplicate, re-point all FK references to the canonical job_id:
-- `matches` — if both have a match, keep the one with higher `relevance_score`
-- `applications` — if both have an application, keep the one with the more advanced status (ordering: `interviewing > offer > applied > new > rejected > withdrawn`)
-- `status_history` — re-point all rows to canonical
+Each merge group is wrapped in a single `BEGIN / COMMIT` transaction. On any error, `ROLLBACK` is issued and the group is skipped with a logged warning.
+
+For each duplicate group, re-point FK references in this order before deleting the duplicate job record:
+
+1. **`matches`** (PK is `job_id`): if both canonical and duplicate have a match row, delete the row with the lower `relevance_score` first, then leave the surviving row in place (no UPDATE needed if canonical row wins; if duplicate row wins, delete canonical row then UPDATE duplicate row's `job_id` to canonical). If only the duplicate has a match row, UPDATE its `job_id` to canonical.
+2. **`applications`** (PK is `job_id`): same pattern — delete the losing row first (lower-priority status per ordering: `interviewing > offer > applied > new > rejected > withdrawn`), then UPDATE the winner's `job_id` to canonical if needed.
+3. **`status_history`** (no PK conflict): UPDATE all rows `WHERE job_id = duplicate_id` to `job_id = canonical_id`. Drop duplicate history rows that are exact duplicates of canonical history rows (`old_status`, `new_status`, `changed_at` all match) to avoid a misleading audit trail. Do not annotate merged rows — the dedup run log is the audit record.
+4. **`jobs`**: DELETE the duplicate job record.
 
 ### Pipeline Integration
 
@@ -91,6 +98,10 @@ Runs automatically after `scrape` step in the full pipeline and when `--step scr
 ```
 uv run jobtracker --step dedup
 ```
+
+`"dedup"` must be added to the `choices` list in the `--step` argparse declaration in `parse_args()` (alongside `scrape`, `filter`, `tailor`, `notify`).
+
+When `--step scrape` is used, call `run_dedup(db)` after `run_scrape()` completes but **before** `db.complete_run()` and `return`.
 
 **Retroactive cleanup:** Running `--step dedup` on the existing DB performs a full cleanup pass. Logs: `"Dedup: N duplicate groups found, M jobs merged, M records removed"`.
 
@@ -104,7 +115,7 @@ Add two columns to `applications` table:
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `follow_up_after` | TEXT (nullable) | ISO date; defaults to `applied_date + 7 days` when status → `applied` |
+| `follow_up_after` | TEXT (nullable) | ISO date; defaults to `applied_date + 7 days` when status → `applied` or `interviewing` |
 | `followed_up_at` | TEXT (nullable) | ISO timestamp of last follow-up action |
 
 **Migration:** `src/db.py` runs `ALTER TABLE` on startup, guarded by `PRAGMA table_info` check (safe to re-run on existing DB).
@@ -113,11 +124,13 @@ Add two columns to `applications` table:
 
 | Command | Description |
 |---------|-------------|
-| `--follow-ups` | List applications where `follow_up_after <= today` and `status = applied`, sorted by most overdue |
-| `--followed-up "Company:id"` | Mark as followed up; resets `follow_up_after` to today + 7 days |
+| `--follow-ups` | List applications where `follow_up_after <= today` and status is any non-terminal value (`new`, `applied`, `interviewing`), sorted by most overdue |
+| `--followed-up "Company:id"` | Mark as followed up: if `follow_up_after` was set, reset it to today + 7 days and record `followed_up_at`. If `follow_up_after` was null, only set `followed_up_at` — do not auto-create a new follow-up date. |
 | `--set-followup "Company:id" 2026-04-10` | Set a specific follow-up date |
 
-**`--follow-ups` output columns:** Company | Title | Applied | Days overdue | Follow-up date
+**`--follow-ups` filter:** `follow_up_after <= today AND status IN ('new', 'applied', 'interviewing')`. Terminal statuses (`offer`, `rejected`, `withdrawn`) are excluded — they don't need follow-up. `follow_up_after` is auto-set on both `applied` and `interviewing` transitions so `interviewing` items will appear here without requiring a manual `--set-followup`.
+
+**`--follow-ups` output columns:** Company | Title | Status | Applied | Days overdue | Follow-up date
 
 ### Interactive `--track` Flow
 
@@ -125,7 +138,7 @@ After setting status to `applied`, prompt:
 ```
 Follow up in how many days? [7]:
 ```
-Accepts a number or Enter for default (7 days).
+Accepts a number or Enter for default (7 days). Sets `follow_up_after = applied_date + N days`.
 
 ### Email Digest
 
@@ -150,10 +163,9 @@ Accepts a number or Enter for default (7 days).
 | `src/steps/dedup.py` | New — deduplication logic |
 | `src/steps/interview_prep.py` | New — prep generation |
 | `src/steps/scrape.py` | Modified — call `run_dedup` after scrape |
-| `src/steps/obsidian.py` | Modified — trigger `generate_interview_prep` on `interviewing` transition |
 | `src/steps/notify.py` | Modified — query and render overdue follow-ups |
 | `src/db.py` | Modified — migration for new columns, helper queries |
-| `src/pipeline.py` | Modified — add `--step dedup`, `--interview-prep`, `--follow-ups`, `--followed-up`, `--set-followup` CLI args |
+| `src/pipeline.py` | Modified — add `--step dedup`, `--interview-prep`, `--research`, `--follow-ups`, `--followed-up`, `--set-followup` CLI args; trigger `generate_interview_prep` on `interviewing` status transition |
 | `templates/digest.html` | Modified — follow-up section |
 
 ---
