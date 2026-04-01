@@ -23,14 +23,6 @@ def db(tmp_path):
     return db
 
 
-def test_patch_obsidian_section_replaces_existing():
-    note = "# Title\n\n## Some Section\ncontent\n\n## Interview Prep\nold content\n\n## Notes\nmore"
-    result = _patch_obsidian_section(note, "## Interview Prep", "new content")
-    assert "old content" not in result
-    assert "new content" in result
-    assert "## Notes\nmore" in result
-
-
 def test_patch_obsidian_section_replaces_with_blank_line_separator():
     """Standard markdown has blank lines between sections."""
     note = "# Title\n\n## Some Section\ncontent\n\n## Interview Prep\nold content\n\n## Notes\nmore"
@@ -98,3 +90,21 @@ def test_generate_interview_prep_calls_llm(db, tmp_path):
 def test_generate_interview_prep_handles_missing_job(db):
     """Should not raise if job not found."""
     generate_interview_prep(db, "nonexistent:999")  # should not raise
+
+
+def test_generate_interview_prep_handles_llm_failure(db, tmp_path):
+    """Should log error and return cleanly when LLM call fails."""
+    fake_resume = {}
+    with (
+        patch("src.steps.interview_prep.anthropic.Anthropic") as MockAnthropic,
+        patch(
+            "src.steps.interview_prep.get_active_resume_yaml",
+            return_value=(tmp_path / "r.yaml", fake_resume),
+        ),
+    ):
+        # LLM returns no tool_use block → _call_llm raises ValueError
+        mock_response = MagicMock()
+        mock_response.content = []  # no tool_use block
+        MockAnthropic.return_value.messages.create.return_value = mock_response
+        # Should not raise
+        generate_interview_prep(db, "stripe:1")

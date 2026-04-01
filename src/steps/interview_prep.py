@@ -104,7 +104,7 @@ def _read_obsidian_note(path: str) -> str:
 
 def _write_obsidian_note(path: str, content: str):
     try:
-        subprocess.run(
+        result = subprocess.run(
             [
                 "claude",
                 "mcp",
@@ -118,6 +118,10 @@ def _write_obsidian_note(path: str, content: str):
             text=True,
             timeout=10,
         )
+        if result.returncode != 0:
+            logger.warning(
+                f"Failed to write Obsidian note {path}: {result.stderr.strip()}"
+            )
     except Exception as e:
         logger.warning(f"Failed to write Obsidian note {path}: {e}")
 
