@@ -22,6 +22,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _compute_follow_up_date(applied_date_str: str | None, days: int = 7) -> str:
+    """Compute a follow-up date string (YYYY-MM-DD) from an applied_date and offset."""
+    base = applied_date_str or datetime.now(timezone.utc).isoformat()
+    try:
+        base_dt = datetime.fromisoformat(base.replace("Z", "+00:00"))
+    except ValueError:
+        base_dt = datetime.now(timezone.utc)
+    return (base_dt + timedelta(days=days)).strftime("%Y-%m-%d")
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Job Tracker Pipeline")
     parser.add_argument(
@@ -171,14 +181,9 @@ def run_pipeline(args):
         # Auto-set follow-up date for active statuses
         if new_status in ("applied", "interviewing"):
             app = db.get_application(job_id)
-            base_date = (
-                app.get("applied_date") or datetime.now(timezone.utc).isoformat()
+            follow_up = _compute_follow_up_date(
+                app.get("applied_date") if app else None
             )
-            try:
-                base_dt = datetime.fromisoformat(base_date.replace("Z", "+00:00"))
-            except ValueError:
-                base_dt = datetime.now(timezone.utc)
-            follow_up = (base_dt + timedelta(days=7)).strftime("%Y-%m-%d")
             db.set_follow_up_date(job_id, follow_up)
         from src.steps.obsidian import write_application_note, write_dashboard
 
@@ -222,14 +227,10 @@ def run_pipeline(args):
             days_input = input("Follow up in how many days? [7]: ").strip()
             follow_up_days = int(days_input) if days_input.isdigit() else 7
             track_app = db.get_application(job_id)
-            base_date = (
-                track_app.get("applied_date") or datetime.now(timezone.utc).isoformat()
+            follow_up = _compute_follow_up_date(
+                track_app.get("applied_date") if track_app else None,
+                days=follow_up_days,
             )
-            try:
-                base_dt = datetime.fromisoformat(base_date.replace("Z", "+00:00"))
-            except ValueError:
-                base_dt = datetime.now(timezone.utc)
-            follow_up = (base_dt + timedelta(days=follow_up_days)).strftime("%Y-%m-%d")
             db.set_follow_up_date(job_id, follow_up)
             print(f"Follow-up date set: {follow_up}")
 
