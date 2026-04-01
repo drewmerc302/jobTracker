@@ -188,8 +188,11 @@ def run_pipeline(args):
             db.set_follow_up_date(job_id, follow_up)
         # Trigger interview prep on interviewing transition
         if new_status == "interviewing":
-            logger.info(f"Generating interview prep for {job_id}...")
-            generate_interview_prep(db, job_id)
+            try:
+                logger.info(f"Generating interview prep for {job_id}...")
+                generate_interview_prep(db, job_id)
+            except Exception as e:
+                logger.warning(f"Interview prep generation failed (non-fatal): {e}")
         from src.steps.obsidian import write_application_note, write_dashboard
 
         write_application_note(job_id, db, config)
@@ -241,8 +244,11 @@ def run_pipeline(args):
 
         # Trigger interview prep on interviewing transition
         if new_status == "interviewing":
-            logger.info(f"Generating interview prep for {job_id}...")
-            generate_interview_prep(db, job_id)
+            try:
+                logger.info(f"Generating interview prep for {job_id}...")
+                generate_interview_prep(db, job_id)
+            except Exception as e:
+                logger.warning(f"Interview prep generation failed (non-fatal): {e}")
 
         salary = input("Salary notes (Enter to skip): ").strip()
         if salary:
