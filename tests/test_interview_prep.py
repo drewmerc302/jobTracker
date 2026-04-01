@@ -144,6 +144,40 @@ def test_status_interviewing_triggers_prep(tmp_path):
     assert len(prep_calls) == 1
 
 
+def test_status_interviewing_prep_failure_does_not_block_obsidian(tmp_path):
+    """If generate_interview_prep raises, --status handler still completes Obsidian writes."""
+    from src.pipeline import parse_args, run_pipeline
+
+    db = Database(tmp_path / "test6.db")
+    now = datetime.now(timezone.utc)
+    db.upsert_job(
+        id="stripe:22",
+        company="Stripe",
+        title="EM",
+        url="https://x.com",
+        scraped_at=now,
+    )
+    db.commit()
+    db.insert_match(job_id="stripe:22", relevance_score=0.9, match_reason="good")
+    db.set_application_status("stripe:22", "applied")
+
+    with (
+        patch("src.pipeline.Database", return_value=db),
+        patch("src.pipeline.Config") as MockConfig,
+        patch("src.steps.obsidian.write_application_note") as mock_obsidian,
+        patch("src.steps.obsidian.write_dashboard"),
+        patch(
+            "src.pipeline.generate_interview_prep", side_effect=RuntimeError("LLM down")
+        ),
+    ):
+        MockConfig.return_value.db_path = tmp_path / "test6.db"
+        args = parse_args(["--status", "stripe:22", "interviewing"])
+        run_pipeline(args)  # should not raise
+
+    # Obsidian write must still have been called despite interview prep failure
+    assert mock_obsidian.called
+
+
 def test_interview_prep_command(tmp_path):
     from src.pipeline import parse_args, run_pipeline
 
