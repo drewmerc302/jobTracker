@@ -14,6 +14,7 @@ from src.steps.filter import run_filter
 from src.steps.tailor import get_active_resume_yaml, run_tailor_for_job
 from src.steps.notify import run_notify
 from src.steps.dedup import run_dedup
+from src.steps.interview_prep import generate_interview_prep
 
 logging.basicConfig(
     level=logging.INFO,
@@ -185,6 +186,10 @@ def run_pipeline(args):
                 app.get("applied_date") if app else None
             )
             db.set_follow_up_date(job_id, follow_up)
+        # Trigger interview prep on interviewing transition
+        if new_status == "interviewing":
+            logger.info(f"Generating interview prep for {job_id}...")
+            generate_interview_prep(db, job_id)
         from src.steps.obsidian import write_application_note, write_dashboard
 
         write_application_note(job_id, db, config)
@@ -233,6 +238,11 @@ def run_pipeline(args):
             )
             db.set_follow_up_date(job_id, follow_up)
             print(f"Follow-up date set: {follow_up}")
+
+        # Trigger interview prep on interviewing transition
+        if new_status == "interviewing":
+            logger.info(f"Generating interview prep for {job_id}...")
+            generate_interview_prep(db, job_id)
 
         salary = input("Salary notes (Enter to skip): ").strip()
         if salary:
@@ -313,6 +323,18 @@ def run_pipeline(args):
             return
         db.set_follow_up_date(job_id, date_str)
         print(f"Follow-up date set: {job['company']} — {job['title']} → {date_str}")
+        return
+
+    if args.interview_prep:
+        job_id = args.interview_prep
+        job = db.get_job(job_id)
+        if not job:
+            logger.error(f"Job not found: {job_id}")
+            return
+        research = getattr(args, "research", False)
+        logger.info(f"Generating interview prep for {job_id} (research={research})...")
+        generate_interview_prep(db, job_id, research=research)
+        print(f"Interview prep written to Obsidian: {job['company']} — {job['title']}")
         return
 
     if args.list_matches:

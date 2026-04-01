@@ -108,3 +108,67 @@ def test_generate_interview_prep_handles_llm_failure(db, tmp_path):
         MockAnthropic.return_value.messages.create.return_value = mock_response
         # Should not raise
         generate_interview_prep(db, "stripe:1")
+
+
+def test_status_interviewing_triggers_prep(tmp_path):
+    from src.pipeline import parse_args, run_pipeline
+
+    db = Database(tmp_path / "test4.db")
+    now = datetime.now(timezone.utc)
+    db.upsert_job(
+        id="stripe:20",
+        company="Stripe",
+        title="EM",
+        url="https://x.com",
+        scraped_at=now,
+    )
+    db.commit()
+    db.insert_match(job_id="stripe:20", relevance_score=0.9, match_reason="good")
+    db.set_application_status("stripe:20", "applied")
+
+    prep_calls = []
+    with (
+        patch("src.pipeline.Database", return_value=db),
+        patch("src.pipeline.Config") as MockConfig,
+        patch("src.steps.obsidian.write_application_note"),
+        patch("src.steps.obsidian.write_dashboard"),
+        patch(
+            "src.pipeline.generate_interview_prep",
+            side_effect=lambda *a, **k: prep_calls.append(a),
+        ),
+    ):
+        MockConfig.return_value.db_path = tmp_path / "test4.db"
+        args = parse_args(["--status", "stripe:20", "interviewing"])
+        run_pipeline(args)
+
+    assert len(prep_calls) == 1
+
+
+def test_interview_prep_command(tmp_path):
+    from src.pipeline import parse_args, run_pipeline
+
+    db = Database(tmp_path / "test5.db")
+    now = datetime.now(timezone.utc)
+    db.upsert_job(
+        id="stripe:21",
+        company="Stripe",
+        title="EM",
+        url="https://x.com",
+        scraped_at=now,
+    )
+    db.commit()
+
+    prep_calls = []
+    with (
+        patch("src.pipeline.Database", return_value=db),
+        patch("src.pipeline.Config") as MockConfig,
+        patch(
+            "src.pipeline.generate_interview_prep",
+            side_effect=lambda *a, **k: prep_calls.append(a),
+        ),
+    ):
+        MockConfig.return_value.db_path = tmp_path / "test5.db"
+        args = parse_args(["--interview-prep", "stripe:21"])
+        run_pipeline(args)
+
+    assert len(prep_calls) == 1
