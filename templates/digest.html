@@ -39,9 +39,10 @@
   <table class="followup-table">
   {% for f in follow_ups %}
   <tr>
-    <td><a href="{{ f.url }}">{{ f.company }} — {{ f.title }}</a></td>
-    <td>{{ f.status }}</td>
+    <td>{{ f.company }}</td>
+    <td>{{ f.title }}</td>
     <td><span class="overdue-badge">{{ f.days_overdue|int }}d overdue</span></td>
+    <td><a href="{{ f.url }}">View listing</a></td>
   </tr>
   {% endfor %}
   </table>
