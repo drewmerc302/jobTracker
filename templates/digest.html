@@ -22,11 +22,31 @@
   .keyword-gap { display: inline-block; background: #fff3e0; padding: 2px 8px; border-radius: 4px; margin: 2px; font-size: 0.85em; }
   .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #e0e0e0; color: #999; font-size: 0.85em; }
   a { color: #1565c0; }
+  .followup-section { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 16px; margin: 16px 0; }
+  .followup-section h2 { color: #e65100; margin: 0 0 10px 0; font-size: 1em; }
+  .followup-table { width: 100%; border-collapse: collapse; }
+  .followup-table td { padding: 6px 10px; border-bottom: 1px solid #ffe082; font-size: 0.9em; }
+  .overdue-badge { background: #e65100; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.8em; }
 </style>
 </head>
 <body>
 
 <h1>Job Tracker Digest &mdash; {{ date }}</h1>
+
+{% if follow_ups %}
+<div class="followup-section">
+  <h2>&#128276; Follow Up Today ({{ follow_ups|length }})</h2>
+  <table class="followup-table">
+  {% for f in follow_ups %}
+  <tr>
+    <td><a href="{{ f.url }}">{{ f.company }} — {{ f.title }}</a></td>
+    <td>{{ f.status }}</td>
+    <td><span class="overdue-badge">{{ f.days_overdue|int }}d overdue</span></td>
+  </tr>
+  {% endfor %}
+  </table>
+</div>
+{% endif %}
 
 {% if matches %}
 <p><strong>{{ matches|length }}</strong> new match{{ 'es' if matches|length > 1 else '' }} found.</p>
