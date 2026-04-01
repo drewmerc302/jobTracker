@@ -6,17 +6,8 @@ from src.db import Database
 
 logger = logging.getLogger(__name__)
 
-_SENIORITY_WORDS = {
-    "senior",
-    "sr",
-    "junior",
-    "jr",
-    "staff",
-    "principal",
-    "lead",
-    "associate",
-}
-_ROMAN = re.compile(r"\s+\b(i{1,3}|iv|vi{0,3}|ix)\b$", re.IGNORECASE)
+_SENIORITY_WORDS = {"senior", "sr", "junior", "staff", "principal", "lead"}
+_ROMAN = re.compile(r"\s+(i{1,3})$", re.IGNORECASE)
 _PUNCT = re.compile(r"[,\-./\\()\[\]]")
 _WHITESPACE = re.compile(r"\s+")
 
@@ -69,22 +60,23 @@ def _parse_ts(ts: str) -> float:
 
 
 def _merge_group(db: Database, canonical: dict, duplicates: list[dict]) -> int:
-    """Merge duplicate jobs into canonical. Returns number removed."""
-    removed = 0
-    for dup in duplicates:
-        cid = canonical["id"]
-        did = dup["id"]
-        try:
-            with db._conn:  # transaction per group
+    """Merge all duplicates into canonical in a single transaction. Returns number removed."""
+    cid = canonical["id"]
+    try:
+        with db._conn:  # single transaction for entire group
+            for dup in duplicates:
+                did = dup["id"]
                 _merge_matches(db, cid, did)
                 _merge_applications(db, cid, did)
                 _merge_status_history(db, cid, did)
                 db._conn.execute("DELETE FROM jobs WHERE id = ?", (did,))
-            removed += 1
-            logger.info(f"Dedup: merged {did} -> {cid}")
-        except Exception as e:
-            logger.warning(f"Dedup: failed to merge {did} -> {cid}: {e}")
-    return removed
+        removed = len(duplicates)
+        for dup in duplicates:
+            logger.info(f"Dedup: merged {dup['id']} -> {cid}")
+        return removed
+    except Exception as e:
+        logger.warning(f"Dedup: failed to merge group for {cid}: {e}")
+        return 0
 
 
 def _merge_matches(db: Database, canonical_id: str, dup_id: str):
@@ -175,6 +167,6 @@ def run_dedup(db: Database) -> tuple[int, int]:
 
     if total_merged:
         logger.info(
-            f"Dedup: {total_merged} duplicate groups found, {total_removed} records removed"
+            f"Dedup: {total_merged} duplicate groups found, {total_removed} jobs merged, {total_removed} records removed"
         )
     return total_merged, total_removed
