@@ -13,6 +13,7 @@ from src.steps.scrape import run_scrape
 from src.steps.filter import run_filter
 from src.steps.tailor import get_active_resume_yaml, run_tailor_for_job
 from src.steps.notify import run_notify
+from src.steps.dedup import run_dedup
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,7 +34,7 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--step",
-        choices=["scrape", "filter", "tailor", "notify"],
+        choices=["scrape", "filter", "tailor", "notify", "dedup"],
         help="Run a single step",
     )
     parser.add_argument(
@@ -366,6 +367,13 @@ def run_pipeline(args):
         logger.info(f"Renotify {'succeeded' if success else 'failed'}")
         return
 
+    if args.step == "dedup":
+        merged, removed = run_dedup(db)
+        print(
+            f"Dedup complete: {merged} duplicate groups merged, {removed} records removed"
+        )
+        return
+
     run_id = db.start_run()
 
     try:
@@ -380,6 +388,7 @@ def run_pipeline(args):
             logger.info(
                 f"Scrape complete: {scrape_result['jobs_scraped']} jobs, {scrape_result['new_jobs']} new"
             )
+            run_dedup(db)  # deduplicate after each scrape
             if args.step == "scrape":
                 db.complete_run(
                     run_id,
