@@ -162,7 +162,6 @@ Accepts a number or Enter for default (7 days). Sets `follow_up_after = applied_
 |------|--------|
 | `src/steps/dedup.py` | New — deduplication logic |
 | `src/steps/interview_prep.py` | New — prep generation |
-| `src/steps/scrape.py` | Modified — call `run_dedup` after scrape |
 | `src/steps/notify.py` | Modified — query and render overdue follow-ups |
 | `src/db.py` | Modified — migration for new columns, helper queries |
 | `src/pipeline.py` | Modified — add `--step dedup`, `--interview-prep`, `--research`, `--follow-ups`, `--followed-up`, `--set-followup` CLI args; trigger `generate_interview_prep` on `interviewing` status transition |
