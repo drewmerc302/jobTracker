@@ -11,6 +11,7 @@ class Database:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._create_tables()
+        self._migrate_follow_up_columns()
 
     def _create_tables(self):
         self._conn.executescript("""
@@ -65,6 +66,21 @@ class Database:
                 changed_at TEXT NOT NULL
             );
         """)
+
+    def _migrate_follow_up_columns(self):
+        existing = {
+            row[1]
+            for row in self._conn.execute("PRAGMA table_info(applications)").fetchall()
+        }
+        if "follow_up_after" not in existing:
+            self._conn.execute(
+                "ALTER TABLE applications ADD COLUMN follow_up_after TEXT"
+            )
+        if "followed_up_at" not in existing:
+            self._conn.execute(
+                "ALTER TABLE applications ADD COLUMN followed_up_at TEXT"
+            )
+        self._conn.commit()
 
     def upsert_job(
         self,
@@ -331,3 +347,47 @@ class Database:
             "UPDATE applications SET salary_notes = ? WHERE job_id = ?", (notes, job_id)
         )
         self._conn.commit()
+
+    def set_follow_up_date(self, job_id: str, date_str: str):
+        """Set follow_up_after to a specific ISO date string (YYYY-MM-DD)."""
+        self._conn.execute(
+            "UPDATE applications SET follow_up_after = ? WHERE job_id = ?",
+            (date_str, job_id),
+        )
+        self._conn.commit()
+
+    def mark_followed_up(self, job_id: str, reset_days: int = 7):
+        """Record follow-up action. Resets follow_up_after only if it was previously set."""
+        from datetime import timedelta
+
+        now = datetime.now(timezone.utc)
+        app = self.get_application(job_id)
+        if not app:
+            return
+        new_follow_up = None
+        if app.get("follow_up_after") is not None:
+            new_follow_up = (now + timedelta(days=reset_days)).strftime("%Y-%m-%d")
+        self._conn.execute(
+            "UPDATE applications SET followed_up_at = ?, follow_up_after = ? WHERE job_id = ?",
+            (now.isoformat(), new_follow_up, job_id),
+        )
+        self._conn.commit()
+
+    def get_overdue_follow_ups(self) -> list[dict]:
+        """Return applications with follow_up_after <= today and non-terminal status."""
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        rows = self._conn.execute(
+            """
+            SELECT a.job_id, j.company, j.title, j.url, a.status,
+                   a.applied_date, a.follow_up_after,
+                   julianday(?) - julianday(a.follow_up_after) AS days_overdue
+            FROM applications a
+            JOIN jobs j ON a.job_id = j.id
+            WHERE a.follow_up_after IS NOT NULL
+              AND a.follow_up_after <= ?
+              AND a.status IN ('new', 'applied', 'interviewing')
+            ORDER BY a.follow_up_after ASC
+            """,
+            (today, today),
+        ).fetchall()
+        return [dict(r) for r in rows]

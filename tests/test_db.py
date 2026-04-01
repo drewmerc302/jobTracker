@@ -183,3 +183,76 @@ def test_update_salary_notes(db):
     db.update_salary_notes("stripe:1", "$200-250k base + equity")
     app = db.get_application("stripe:1")
     assert app["salary_notes"] == "$200-250k base + equity"
+
+
+def test_follow_up_columns_exist(db):
+    cols = {
+        row[1] for row in db._conn.execute("PRAGMA table_info(applications)").fetchall()
+    }
+    assert "follow_up_after" in cols
+    assert "followed_up_at" in cols
+
+
+def test_get_overdue_follow_ups_empty(db):
+    assert db.get_overdue_follow_ups() == []
+
+
+def test_get_overdue_follow_ups_returns_overdue(db):
+    now = datetime.now(timezone.utc)
+    db.upsert_job(
+        id="stripe:1", company="Stripe", title="EM", url="https://x.com", scraped_at=now
+    )
+    db.insert_match(job_id="stripe:1", relevance_score=0.9, match_reason="good")
+    db.set_application_status("stripe:1", "applied")
+    db.set_follow_up_date("stripe:1", "2000-01-01")  # far in the past
+
+    overdue = db.get_overdue_follow_ups()
+    assert len(overdue) == 1
+    assert overdue[0]["job_id"] == "stripe:1"
+
+
+def test_get_overdue_follow_ups_excludes_terminal_statuses(db):
+    now = datetime.now(timezone.utc)
+    for jid, status in [
+        ("stripe:2", "rejected"),
+        ("stripe:3", "withdrawn"),
+        ("stripe:4", "offer"),
+    ]:
+        db.upsert_job(
+            id=jid, company="Stripe", title="EM", url="https://x.com", scraped_at=now
+        )
+        db.insert_match(job_id=jid, relevance_score=0.9, match_reason="good")
+        db.set_application_status(jid, status)
+        db.set_follow_up_date(jid, "2000-01-01")
+
+    assert db.get_overdue_follow_ups() == []
+
+
+def test_mark_followed_up_resets_date(db):
+    now = datetime.now(timezone.utc)
+    db.upsert_job(
+        id="stripe:5", company="Stripe", title="EM", url="https://x.com", scraped_at=now
+    )
+    db.insert_match(job_id="stripe:5", relevance_score=0.9, match_reason="good")
+    db.set_application_status("stripe:5", "applied")
+    db.set_follow_up_date("stripe:5", "2000-01-01")
+
+    db.mark_followed_up("stripe:5", reset_days=7)
+    app = db.get_application("stripe:5")
+    assert app["followed_up_at"] is not None
+    assert app["follow_up_after"] > "2000-01-01"  # reset to future
+
+
+def test_mark_followed_up_no_reset_when_no_date(db):
+    now = datetime.now(timezone.utc)
+    db.upsert_job(
+        id="stripe:6", company="Stripe", title="EM", url="https://x.com", scraped_at=now
+    )
+    db.insert_match(job_id="stripe:6", relevance_score=0.9, match_reason="good")
+    db.set_application_status("stripe:6", "applied")
+    # do NOT set follow_up_after
+
+    db.mark_followed_up("stripe:6", reset_days=7)
+    app = db.get_application("stripe:6")
+    assert app["followed_up_at"] is not None
+    assert app["follow_up_after"] is None  # was null, stays null
