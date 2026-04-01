@@ -25,7 +25,7 @@ def _normalize_title(title: str) -> str:
     title = _ROMAN.sub("", title)
     title = _PUNCT.sub(" ", title)
     words = title.lower().split()
-    words = [w for w in words if w.rstrip(".") not in _SENIORITY_WORDS]
+    words = [w for w in words if w.lower() not in _SENIORITY_WORDS]
     return _WHITESPACE.sub(" ", " ".join(words)).strip()
 
 
