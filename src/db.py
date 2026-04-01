@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -358,7 +358,6 @@ class Database:
 
     def mark_followed_up(self, job_id: str, reset_days: int = 7):
         """Record follow-up action. Resets follow_up_after only if it was previously set."""
-        from datetime import timedelta
 
         now = datetime.now(timezone.utc)
         app = self.get_application(job_id)
