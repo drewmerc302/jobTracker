@@ -89,3 +89,58 @@ def test_follow_ups_command_output(tmp_path, capsys):
     assert "Stripe" in captured.out
     assert "applied" in captured.out
     assert "2000-01-01" in captured.out
+
+
+def test_status_applied_auto_sets_follow_up(tmp_path):
+    db = Database(tmp_path / "test2.db")
+    now = datetime.now(timezone.utc)
+    db.upsert_job(
+        id="stripe:10",
+        company="Stripe",
+        title="EM",
+        url="https://x.com",
+        scraped_at=now,
+    )
+    db.commit()
+    db.insert_match(job_id="stripe:10", relevance_score=0.9, match_reason="good")
+
+    with (
+        patch("src.pipeline.Database", return_value=db),
+        patch("src.pipeline.Config") as MockConfig,
+        patch("src.steps.obsidian.write_application_note"),
+        patch("src.steps.obsidian.write_dashboard"),
+    ):
+        MockConfig.return_value.db_path = tmp_path / "test2.db"
+        args = parse_args(["--status", "stripe:10", "applied"])
+        run_pipeline(args)
+
+    app = db.get_application("stripe:10")
+    assert app["follow_up_after"] is not None
+
+
+def test_status_interviewing_auto_sets_follow_up(tmp_path):
+    db = Database(tmp_path / "test3.db")
+    now = datetime.now(timezone.utc)
+    db.upsert_job(
+        id="stripe:11",
+        company="Stripe",
+        title="EM",
+        url="https://x.com",
+        scraped_at=now,
+    )
+    db.commit()
+    db.insert_match(job_id="stripe:11", relevance_score=0.9, match_reason="good")
+    db.set_application_status("stripe:11", "applied")
+
+    with (
+        patch("src.pipeline.Database", return_value=db),
+        patch("src.pipeline.Config") as MockConfig,
+        patch("src.steps.obsidian.write_application_note"),
+        patch("src.steps.obsidian.write_dashboard"),
+    ):
+        MockConfig.return_value.db_path = tmp_path / "test3.db"
+        args = parse_args(["--status", "stripe:11", "interviewing"])
+        run_pipeline(args)
+
+    app = db.get_application("stripe:11")
+    assert app["follow_up_after"] is not None

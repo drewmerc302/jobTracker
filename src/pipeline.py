@@ -2,7 +2,7 @@ import argparse
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 
 from src.config import Config
@@ -168,6 +168,18 @@ def run_pipeline(args):
             return
         db.set_application_status(job_id, new_status)
         print(f"Status updated: {job['company']} — {job['title']} → {new_status}")
+        # Auto-set follow-up date for active statuses
+        if new_status in ("applied", "interviewing"):
+            app = db.get_application(job_id)
+            base_date = (
+                app.get("applied_date") or datetime.now(timezone.utc).isoformat()
+            )
+            try:
+                base_dt = datetime.fromisoformat(base_date.replace("Z", "+00:00"))
+            except ValueError:
+                base_dt = datetime.now(timezone.utc)
+            follow_up = (base_dt + timedelta(days=7)).strftime("%Y-%m-%d")
+            db.set_follow_up_date(job_id, follow_up)
         from src.steps.obsidian import write_application_note, write_dashboard
 
         write_application_note(job_id, db, config)
@@ -205,6 +217,21 @@ def run_pipeline(args):
             print(f"Status → {new_status}")
         else:
             new_status = current
+
+        if new_status in ("applied", "interviewing"):
+            days_input = input("Follow up in how many days? [7]: ").strip()
+            follow_up_days = int(days_input) if days_input.isdigit() else 7
+            track_app = db.get_application(job_id)
+            base_date = (
+                track_app.get("applied_date") or datetime.now(timezone.utc).isoformat()
+            )
+            try:
+                base_dt = datetime.fromisoformat(base_date.replace("Z", "+00:00"))
+            except ValueError:
+                base_dt = datetime.now(timezone.utc)
+            follow_up = (base_dt + timedelta(days=follow_up_days)).strftime("%Y-%m-%d")
+            db.set_follow_up_date(job_id, follow_up)
+            print(f"Follow-up date set: {follow_up}")
 
         salary = input("Salary notes (Enter to skip): ").strip()
         if salary:
