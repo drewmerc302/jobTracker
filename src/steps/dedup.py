@@ -63,6 +63,9 @@ def _merge_group(db: Database, canonical: dict, duplicates: list[dict]) -> int:
     """Merge all duplicates into canonical in a single transaction. Returns number removed."""
     cid = canonical["id"]
     try:
+        # SQLite same-connection reads see uncommitted writes within the transaction,
+        # so get_match/get_application calls in subsequent iterations correctly see
+        # changes made by earlier iterations in the same group.
         with db._conn:  # single transaction for entire group
             for dup in duplicates:
                 did = dup["id"]

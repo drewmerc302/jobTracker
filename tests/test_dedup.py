@@ -193,3 +193,55 @@ def test_dedup_no_cross_company(db):
     _make_job(db, "datadog:1", "DataDog", "Engineering Manager")
     merged, removed = run_dedup(db)
     assert merged == 0
+
+
+def test_dedup_three_job_group(db):
+    """Multi-duplicate group: canonical chosen by score, others merged in one transaction."""
+    # stripe:1 has best score (salary + long description)
+    _make_job(
+        db,
+        "stripe:1",
+        "Stripe",
+        "Senior Engineering Manager",
+        salary="200k",
+        description="x" * 600,
+    )
+    # stripe:2 has a match
+    _make_job(db, "stripe:2", "Stripe", "Engineering Manager")
+    db.insert_match(job_id="stripe:2", relevance_score=0.8, match_reason="decent")
+    # stripe:3 has an application
+    _make_job(db, "stripe:3", "Stripe", "Staff Engineering Manager")
+    db.set_application_status("stripe:3", "applied")
+
+    merged, removed = run_dedup(db)
+    assert merged == 1
+    assert removed == 2
+    assert db.get_job("stripe:1") is not None
+    assert db.get_job("stripe:2") is None
+    assert db.get_job("stripe:3") is None
+    # Match and application migrated to canonical
+    assert db.get_match("stripe:1") is not None
+    assert db.get_application("stripe:1") is not None
+
+
+def test_dedup_status_history_migrated(db):
+    """Status history rows are re-pointed to canonical after merge."""
+    _make_job(
+        db,
+        "stripe:1",
+        "Stripe",
+        "Senior Engineering Manager",
+        salary="200k",
+        description="x" * 600,
+    )
+    _make_job(db, "stripe:2", "Stripe", "Engineering Manager")
+    db.set_application_status("stripe:2", "applied")  # creates history row
+
+    run_dedup(db)
+
+    # Status history should now reference canonical id
+    history = db.get_status_history("stripe:1")
+    assert len(history) > 0
+    assert all(h["job_id"] == "stripe:1" for h in history)
+    # No history should remain under the duplicate id
+    assert db.get_status_history("stripe:2") == []
