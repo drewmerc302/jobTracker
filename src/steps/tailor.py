@@ -6,7 +6,12 @@ from pathlib import Path
 
 import anthropic
 import yaml
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 from src.config import Config
 from src.db import Database
@@ -44,7 +49,8 @@ ANALYSIS_TOOL = {
                 },
             },
             "keyword_gaps": {
-                "type": "array", "items": {"type": "string"},
+                "type": "array",
+                "items": {"type": "string"},
                 "description": "Keywords in the JD missing from the resume",
             },
         },
@@ -54,11 +60,18 @@ ANALYSIS_TOOL = {
 
 
 def get_active_resume_yaml(config: Config) -> tuple[Path, dict]:
-    project_json = config.resume_versions_path / "projects" / config.resume_project / "project.json"
+    project_json = (
+        config.resume_versions_path
+        / "projects"
+        / config.resume_project
+        / "project.json"
+    )
     with open(project_json) as f:
         project = json.load(f)
     active_version = project["active_version"]
-    versions_dir = config.resume_versions_path / "projects" / config.resume_project / "versions"
+    versions_dir = (
+        config.resume_versions_path / "projects" / config.resume_project / "versions"
+    )
     candidates = list(versions_dir.glob(f"{active_version}*"))
     if not candidates:
         raise FileNotFoundError(f"No version directory found for {active_version}")
@@ -82,7 +95,9 @@ def reorder_resume_yaml(resume_data: dict, reorder_map: dict) -> dict:
     return result
 
 
-def apply_suggested_edits(resume_data: dict, edits: list[dict], adopt_indices: set[int]) -> dict:
+def apply_suggested_edits(
+    resume_data: dict, edits: list[dict], adopt_indices: set[int]
+) -> dict:
     """Apply selected suggested edits to resume data. Edits are 1-indexed."""
     result = copy.deepcopy(resume_data)
     edits_to_apply = {}
@@ -120,16 +135,19 @@ def apply_suggested_edits(resume_data: dict, edits: list[dict], adopt_indices: s
 
 
 @_llm_retry
-def llm_resume_analysis(resume_yaml_str: str, job_description: str, config: Config) -> dict:
+def llm_resume_analysis(
+    resume_yaml_str: str, job_description: str, config: Config
+) -> dict:
     client = anthropic.Anthropic(api_key=config.anthropic_api_key)
     response = client.messages.create(
         model=config.llm_tailor_model,
         max_tokens=4096,
         tools=[ANALYSIS_TOOL],
         tool_choice={"type": "tool", "name": "resume_analysis"},
-        messages=[{
-            "role": "user",
-            "content": f"""Analyze this resume against the job description. Reorder bullets to prioritize
+        messages=[
+            {
+                "role": "user",
+                "content": f"""Analyze this resume against the job description. Reorder bullets to prioritize
 relevance to the JD, suggest wording improvements for better keyword alignment,
 and identify keyword gaps.
 
@@ -138,7 +156,8 @@ RESUME (YAML):
 
 JOB DESCRIPTION:
 {job_description}""",
-        }],
+            }
+        ],
     )
     for block in response.content:
         if block.type == "tool_use":
@@ -146,7 +165,9 @@ JOB DESCRIPTION:
     return {"reordered_bullets": {}, "suggested_edits": [], "keyword_gaps": []}
 
 
-def generate_resume_pdf(resume_data: dict, output_dir: Path, config: Config) -> Path | None:
+def generate_resume_pdf(
+    resume_data: dict, output_dir: Path, config: Config
+) -> Path | None:
     output_dir.mkdir(parents=True, exist_ok=True)
     yaml_path = output_dir / "resume.yaml"
     typ_path = output_dir / "resume.typ"
@@ -157,15 +178,35 @@ def generate_resume_pdf(resume_data: dict, output_dir: Path, config: Config) -> 
 
     try:
         subprocess.run(
-            ["uv", "run", "--directory", str(config.resume_formatter_dir),
-             "scripts/yaml_to_typst.py", str(yaml_path), config.resume_template,
-             "--output", str(typ_path)],
-            check=True, capture_output=True, text=True,
+            [
+                "uv",
+                "run",
+                "--directory",
+                str(config.resume_formatter_dir),
+                "scripts/yaml_to_typst.py",
+                str(yaml_path),
+                config.resume_template,
+                "--output",
+                str(typ_path),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
         )
         subprocess.run(
-            ["uv", "run", "--directory", str(config.resume_formatter_dir),
-             "scripts/compile_typst.py", str(typ_path), "--output", str(pdf_path)],
-            check=True, capture_output=True, text=True,
+            [
+                "uv",
+                "run",
+                "--directory",
+                str(config.resume_formatter_dir),
+                "scripts/compile_typst.py",
+                str(typ_path),
+                "--output",
+                str(pdf_path),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
         )
         return pdf_path
     except subprocess.CalledProcessError as e:
@@ -183,9 +224,14 @@ def _enforce_one_page(typ_path: Path):
     typ_path.write_text(content)
 
 
-def generate_cover_letter_pdf(resume_yaml_path: Path, job_description: str,
-                               company: str, position: str,
-                               output_dir: Path, config: Config) -> Path | None:
+def generate_cover_letter_pdf(
+    resume_yaml_path: Path,
+    job_description: str,
+    company: str,
+    position: str,
+    output_dir: Path,
+    config: Config,
+) -> Path | None:
     output_dir.mkdir(parents=True, exist_ok=True)
     company_clean = company.replace(" ", "_")
     jd_path = output_dir / "job_description.txt"
@@ -195,24 +241,46 @@ def generate_cover_letter_pdf(resume_yaml_path: Path, job_description: str,
 
     try:
         subprocess.run(
-            ["uv", "run", "--directory", str(config.resume_coverletter_dir),
-             "scripts/generate_cover_letter.py", str(resume_yaml_path),
-             "--template", config.cover_letter_template,
-             "--company", company,
-             "--position", position,
-             "--job-file", str(jd_path),
-             "--output", str(typ_path)],
-            check=True, capture_output=True, text=True,
+            [
+                "uv",
+                "run",
+                "--directory",
+                str(config.resume_coverletter_dir),
+                "scripts/generate_cover_letter.py",
+                str(resume_yaml_path),
+                "--template",
+                config.cover_letter_template,
+                "--company",
+                company,
+                "--position",
+                position,
+                "--job-file",
+                str(jd_path),
+                "--output",
+                str(typ_path),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
         )
 
         # Enforce 1-page cover letter: reduce font size and tighten spacing
         _enforce_one_page(typ_path)
 
         subprocess.run(
-            ["uv", "run", "--directory", str(config.resume_coverletter_dir),
-             "scripts/compile_cover_letter.py", str(typ_path),
-             "--output", str(pdf_path)],
-            check=True, capture_output=True, text=True,
+            [
+                "uv",
+                "run",
+                "--directory",
+                str(config.resume_coverletter_dir),
+                "scripts/compile_cover_letter.py",
+                str(typ_path),
+                "--output",
+                str(pdf_path),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
         )
         return pdf_path
     except subprocess.CalledProcessError as e:
@@ -220,10 +288,16 @@ def generate_cover_letter_pdf(resume_yaml_path: Path, job_description: str,
         return None
 
 
-def run_tailor_for_job(job: dict, evaluation: dict, resume_yaml_path: Path,
-                       resume_data: dict, output_dir: Path,
-                       config: Config, db: Database,
-                       adopt_edits: set[int] | None = None) -> dict:
+def run_tailor_for_job(
+    job: dict,
+    evaluation: dict,
+    resume_yaml_path: Path,
+    resume_data: dict,
+    output_dir: Path,
+    config: Config,
+    db: Database,
+    adopt_edits: set[int] | None = None,
+) -> dict:
     job_dir = output_dir / f"{job['company']}_{job['id'].replace(':', '_')}"
     resume_yaml_str = yaml.dump(resume_data, default_flow_style=False)
     analysis = llm_resume_analysis(resume_yaml_str, job.get("description", ""), config)
@@ -237,15 +311,21 @@ def run_tailor_for_job(job: dict, evaluation: dict, resume_yaml_path: Path,
 
     resume_pdf = generate_resume_pdf(tailored, job_dir, config)
     cover_letter_pdf = generate_cover_letter_pdf(
-        resume_yaml_path, job.get("description", ""),
-        job["company"], job["title"], job_dir, config,
+        resume_yaml_path,
+        job.get("description", ""),
+        job["company"],
+        job["title"],
+        job_dir,
+        config,
     )
-    suggestions = json.dumps({
-        "suggested_edits": analysis.get("suggested_edits", []),
-        "keyword_gaps": analysis.get("keyword_gaps", []),
-        "key_requirements": evaluation.get("key_requirements", []),
-        "interview_talking_points": evaluation.get("interview_talking_points", []),
-    })
+    suggestions = json.dumps(
+        {
+            "suggested_edits": analysis.get("suggested_edits", []),
+            "keyword_gaps": analysis.get("keyword_gaps", []),
+            "key_requirements": evaluation.get("key_requirements", []),
+            "interview_talking_points": evaluation.get("interview_talking_points", []),
+        }
+    )
     db.update_match_paths(
         job["id"],
         resume_path=str(resume_pdf) if resume_pdf else None,

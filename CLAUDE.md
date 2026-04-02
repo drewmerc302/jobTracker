@@ -17,6 +17,10 @@ uv run jobtracker --dry-run
 # Query tools
 uv run jobtracker --list-matches
 uv run jobtracker --show-job "Stripe:7609424"
+uv run jobtracker --show-job "Stripe:7609424" --markdown
+uv run jobtracker --show-all-jobs
+uv run jobtracker --show-all-jobs --score 80
+uv run jobtracker --show-all-jobs --score 80 --markdown > matches.md
 uv run jobtracker --tailor-job "Stripe:7609424"
 uv run jobtracker --tailor-job "Stripe:7609424" --adopt 1,3,5
 

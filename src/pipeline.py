@@ -69,6 +69,23 @@ def parse_args(argv=None):
         help="Show match analysis, suggested edits, and keyword gaps for a job",
     )
     parser.add_argument(
+        "--show-all-jobs",
+        action="store_true",
+        help="Show full details for all matched jobs",
+    )
+    parser.add_argument(
+        "-md",
+        "--markdown",
+        action="store_true",
+        help="Output in markdown format (use with --show-job or --show-all-jobs)",
+    )
+    parser.add_argument(
+        "--score",
+        type=int,
+        metavar="PERCENT",
+        help="Minimum score filter as whole number percentage (e.g. 80). Use with --show-all-jobs.",
+    )
+    parser.add_argument(
         "--status",
         nargs=2,
         metavar=("JOB_ID", "STATUS"),
@@ -151,6 +168,136 @@ def get_resume_summary(resume_data: dict) -> str:
         for exp in experience[:3]:
             parts.append(f"{exp.get('title', '')} at {exp.get('company', '')}")
     return "\n".join(parts)
+
+
+def _format_job_detail(job, match, db, markdown=False):
+    suggestions = json.loads(match.get("suggestions") or "{}")
+    app = db.get_application(job["id"])
+    app_status = app["status"] if app else "not tracked"
+    app_date = (
+        f" ({app['applied_date'][:10]})" if app and app.get("applied_date") else ""
+    )
+    edits = suggestions.get("suggested_edits", [])
+    job_id = job["id"]
+
+    if markdown:
+        lines = []
+        lines.append(f"# {job['company']} — {job['title']}")
+        lines.append("")
+        lines.append(
+            f"**Score:** {match['relevance_score']:.0%} | "
+            f"**Status:** {app_status}{app_date} | "
+            f"**Location:** {job.get('location', 'N/A')}"
+        )
+        if job.get("salary"):
+            lines.append(f"**Salary:** {job['salary']}")
+        lines.append(f"**URL:** {job.get('url', 'N/A')}")
+        lines.append("")
+        lines.append("## Why This Matches")
+        lines.append("")
+        lines.append(match["match_reason"])
+
+        if suggestions.get("key_requirements"):
+            lines.append("")
+            lines.append("## Key Requirements")
+            lines.append("")
+            for req in suggestions["key_requirements"]:
+                lines.append(f"- {req}")
+
+        if suggestions.get("interview_talking_points"):
+            lines.append("")
+            lines.append("## Interview Talking Points")
+            lines.append("")
+            for tp in suggestions["interview_talking_points"]:
+                lines.append(f"- {tp}")
+
+        if edits:
+            lines.append("")
+            lines.append("## Suggested Resume Edits")
+            for i, edit in enumerate(edits, 1):
+                lines.append("")
+                lines.append(f"### Edit {i}")
+                lines.append("")
+                lines.append(f"**Current:** {edit['original']}")
+                lines.append("")
+                lines.append(f"**Suggested:** {edit['suggested']}")
+                lines.append("")
+                lines.append(f"**Why:** {edit['reason']}")
+
+        if suggestions.get("keyword_gaps"):
+            lines.append("")
+            lines.append(f"**Keyword gaps:** {', '.join(suggestions['keyword_gaps'])}")
+
+        if match.get("resume_path") or match.get("cover_letter_path"):
+            lines.append("")
+            lines.append("## Generated PDFs")
+            lines.append("")
+            if match.get("resume_path"):
+                lines.append(f"- **Resume:** {match['resume_path']}")
+            if match.get("cover_letter_path"):
+                lines.append(f"- **Cover letter:** {match['cover_letter_path']}")
+
+        lines.append("")
+        lines.append("## Commands")
+        lines.append("")
+        lines.append("```bash")
+        lines.append(f'uv run jobtracker --tailor-job "{job_id}"')
+        if edits:
+            all_nums = ",".join(str(i) for i in range(1, len(edits) + 1))
+            lines.append(
+                f'uv run jobtracker --tailor-job "{job_id}" --adopt {all_nums}'
+            )
+        lines.append("```")
+        return "\n".join(lines)
+
+    # Plain text format (original)
+    lines = []
+    lines.append(f"\n{'=' * 70}")
+    lines.append(f"{job['company']} — {job['title']}")
+    lines.append(f"{'=' * 70}")
+    lines.append(f"Location: {job.get('location', 'N/A')}")
+    lines.append(f"Salary:   {job.get('salary', 'N/A')}")
+    lines.append(f"Score:    {match['relevance_score']:.0%}")
+    lines.append(f"Status:   {app_status}{app_date}")
+    lines.append(f"URL:      {job.get('url', 'N/A')}")
+    lines.append(f"\nWhy this matches:\n  {match['match_reason']}")
+
+    if suggestions.get("key_requirements"):
+        lines.append("\nKey requirements:")
+        for req in suggestions["key_requirements"]:
+            lines.append(f"  - {req}")
+
+    if suggestions.get("interview_talking_points"):
+        lines.append("\nInterview talking points:")
+        for tp in suggestions["interview_talking_points"]:
+            lines.append(f"  - {tp}")
+
+    if edits:
+        lines.append("\nSuggested resume edits:")
+        for i, edit in enumerate(edits, 1):
+            lines.append(f"\n  [{i}] CURRENT:")
+            lines.append(f"      {edit['original']}")
+            lines.append(f"  [{i}] SUGGESTED:")
+            lines.append(f"      {edit['suggested']}")
+            lines.append(f"  [{i}] WHY: {edit['reason']}")
+
+    if suggestions.get("keyword_gaps"):
+        lines.append(f"\nKeyword gaps: {', '.join(suggestions['keyword_gaps'])}")
+
+    if match.get("resume_path"):
+        lines.append(f"\nResume PDF:       {match['resume_path']}")
+    if match.get("cover_letter_path"):
+        lines.append(f"Cover letter PDF: {match['cover_letter_path']}")
+
+    lines.append("\nGenerate/regenerate PDFs:")
+    lines.append(f'  uv run jobtracker --tailor-job "{job_id}"')
+    if edits:
+        all_nums = ",".join(str(i) for i in range(1, len(edits) + 1))
+        lines.append("\nAdopt all suggested edits:")
+        lines.append(f'  uv run jobtracker --tailor-job "{job_id}" --adopt {all_nums}')
+        lines.append("\nAdopt specific edits (e.g. 1,3,5):")
+        lines.append(f'  uv run jobtracker --tailor-job "{job_id}" --adopt 1,3,5')
+    return "\n".join(lines)
 
 
 def run_pipeline(args):
@@ -377,59 +524,52 @@ def run_pipeline(args):
         if not match:
             print(f"No match record for {job_id}")
             return
-        suggestions = json.loads(match.get("suggestions") or "{}")
+        print(_format_job_detail(job, match, db, markdown=args.markdown))
+        return
 
-        print(f"\n{'=' * 70}")
-        print(f"{job['company']} — {job['title']}")
-        print(f"{'=' * 70}")
-        print(f"Location: {job.get('location', 'N/A')}")
-        print(f"Salary:   {job.get('salary', 'N/A')}")
-        print(f"Score:    {match['relevance_score']:.0%}")
-        app = db.get_application(job_id)
-        app_status = app["status"] if app else "not tracked"
-        app_date = (
-            f" ({app['applied_date'][:10]})" if app and app.get("applied_date") else ""
-        )
-        print(f"Status:   {app_status}{app_date}")
-        print(f"URL:      {job.get('url', 'N/A')}")
-        print(f"\nWhy this matches:\n  {match['match_reason']}")
-
-        if suggestions.get("key_requirements"):
-            print("\nKey requirements:")
-            for req in suggestions["key_requirements"]:
-                print(f"  - {req}")
-
-        if suggestions.get("interview_talking_points"):
-            print("\nInterview talking points:")
-            for tp in suggestions["interview_talking_points"]:
-                print(f"  - {tp}")
-
-        edits = suggestions.get("suggested_edits", [])
-        if edits:
-            print("\nSuggested resume edits:")
-            for i, edit in enumerate(edits, 1):
-                print(f"\n  [{i}] CURRENT:")
-                print(f"      {edit['original']}")
-                print(f"  [{i}] SUGGESTED:")
-                print(f"      {edit['suggested']}")
-                print(f"  [{i}] WHY: {edit['reason']}")
-
-        if suggestions.get("keyword_gaps"):
-            print(f"\nKeyword gaps: {', '.join(suggestions['keyword_gaps'])}")
-
-        if match.get("resume_path"):
-            print(f"\nResume PDF:       {match['resume_path']}")
-        if match.get("cover_letter_path"):
-            print(f"Cover letter PDF: {match['cover_letter_path']}")
-
-        print("\nGenerate/regenerate PDFs:")
-        print(f'  uv run jobtracker --tailor-job "{job_id}"')
-        if edits:
-            all_nums = ",".join(str(i) for i in range(1, len(edits) + 1))
-            print("\nAdopt all suggested edits:")
-            print(f'  uv run jobtracker --tailor-job "{job_id}" --adopt {all_nums}')
-            print("\nAdopt specific edits (e.g. 1,3,5):")
-            print(f'  uv run jobtracker --tailor-job "{job_id}" --adopt 1,3,5')
+    if args.show_all_jobs:
+        min_score = (args.score / 100.0) if args.score is not None else 0.0
+        rows = db._conn.execute(
+            """
+            SELECT m.job_id FROM matches m
+            JOIN jobs j ON m.job_id = j.id
+            WHERE m.relevance_score >= ?
+            ORDER BY m.relevance_score DESC
+        """,
+            (min_score,),
+        ).fetchall()
+        if not rows:
+            print(
+                "No matches found"
+                + (f" with score >= {args.score}%." if args.score else ".")
+            )
+            return
+        parts = []
+        if args.markdown:
+            score_label = f" (score >= {args.score}%)" if args.score else ""
+            parts.append(f"# Matched Jobs{score_label}\n")
+            parts.append("## Table of Contents\n")
+            for r in rows:
+                job = db.get_job(r["job_id"])
+                match = db.get_match(r["job_id"])
+                if job and match:
+                    anchor = f"{job['company']}-{job['title']}".lower().replace(
+                        " ", "-"
+                    )
+                    anchor = "".join(c for c in anchor if c.isalnum() or c in "-")
+                    parts.append(
+                        f"- [{job['company']} — {job['title']}](#{anchor}) ({match['relevance_score']:.0%})"
+                    )
+            parts.append("")
+        for i, r in enumerate(rows):
+            job = db.get_job(r["job_id"])
+            match = db.get_match(r["job_id"])
+            if not job or not match:
+                continue
+            if args.markdown and i > 0:
+                parts.append("\n---\n")
+            parts.append(_format_job_detail(job, match, db, markdown=args.markdown))
+        print("\n".join(parts))
         return
 
     if args.tailor_job:
