@@ -3,7 +3,6 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta, timezone
-from urllib.parse import quote
 
 
 from src.config import Config
@@ -193,10 +192,6 @@ def _format_job_detail(job, match, db, markdown=False):
         if job.get("salary"):
             lines.append(f"**Salary:** {job['salary']}")
         lines.append(f"**URL:** {job.get('url', 'N/A')}")
-        linkedin_url = f"https://www.linkedin.com/search/results/people/?keywords={quote(job['company'])}&network=%5B%22F%22%5D"
-        lines.append(
-            f"**LinkedIn Connections:** [Search at {job['company']}]({linkedin_url})"
-        )
         lines.append("")
         lines.append("## Why This Matches")
         lines.append("")
@@ -265,8 +260,6 @@ def _format_job_detail(job, match, db, markdown=False):
     lines.append(f"Score:    {match['relevance_score']:.0%}")
     lines.append(f"Status:   {app_status}{app_date}")
     lines.append(f"URL:      {job.get('url', 'N/A')}")
-    linkedin_url = f"https://www.linkedin.com/search/results/people/?keywords={quote(job['company'])}&network=%5B%22F%22%5D"
-    lines.append(f"LinkedIn: {linkedin_url}")
     lines.append(f"\nWhy this matches:\n  {match['match_reason']}")
 
     if suggestions.get("key_requirements"):
