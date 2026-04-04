@@ -194,7 +194,7 @@ Candidate's resume (YAML):
     )
 
     response = client.messages.create(
-        model="claude-sonnet-4-5",
+        model=config.llm_tailor_model,
         max_tokens=2000,
         tools=[PREP_TOOL],
         tool_choice={"type": "any"},
