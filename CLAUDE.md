@@ -1,5 +1,3 @@
-# CLAUDE.md
-
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Commands
@@ -111,6 +109,8 @@ SQLite at `data/jobtracker.db` with WAL mode. Schema in `src/db.py` with auto-mi
 **Output artifacts:** Generated PDFs written to `output/` organized by date/company.
 
 **Obsidian vault path:** `Topics/Job Applications/{company} — {title}.md` for notes, `Topics/Job Applications/Dashboard.md` for dashboard.
+
+**Scraper fragility:** Workday (Capital One, Netflix) and Apple scrapers are brittle — URL formats, auth flows, and path construction break silently. After any scraper change, test against real data (`uv run jobtracker --step scrape`) and verify job counts are plausible. Outline approach and failure points before writing scraper code.
 
 **Testing:** pytest with JSON fixtures in `tests/fixtures/` (Greenhouse, Workday mock responses). 12 test modules covering all components. No CI pipeline configured — tests run locally.
 
