@@ -122,22 +122,18 @@ Here is content from employee reviews and discussions:
 Synthesize the most common employee pain points and complaints using the company_gripes tool.
 Focus on recurring themes that multiple employees mention, not one-off complaints."""
 
-    try:
-        response = client.messages.create(
-            model=config.llm_filter_model,
-            max_tokens=1200,
-            tools=[GRIPES_TOOL],
-            tool_choice={"type": "tool", "name": "company_gripes"},
-            messages=[{"role": "user", "content": prompt}],
-        )
-        for block in response.content:
-            if hasattr(block, "type") and block.type == "tool_use":
-                return block.input
-        logger.error(f"gripes: LLM returned no tool_use block for {company}")
-        return None
-    except Exception as e:
-        logger.error(f"gripes: LLM call failed for {company}: {e}")
-        return None
+    response = client.messages.create(
+        model=config.llm_filter_model,
+        max_tokens=1200,
+        tools=[GRIPES_TOOL],
+        tool_choice={"type": "tool", "name": "company_gripes"},
+        messages=[{"role": "user", "content": prompt}],
+    )
+    for block in response.content:
+        if hasattr(block, "type") and block.type == "tool_use":
+            return block.input
+    logger.error(f"gripes: LLM returned no tool_use block for {company}")
+    return None
 
 
 def get_gripes(db: Database, company: str, config: Config) -> dict | None:
@@ -156,7 +152,11 @@ def get_gripes(db: Database, company: str, config: Config) -> dict | None:
 
     logger.info(f"gripes: fetching reviews for {company}")
     search_text = _web_search(company)
-    gripes = _call_llm(company, search_text, config)
+    try:
+        gripes = _call_llm(company, search_text, config)
+    except (anthropic.APIError, anthropic.APIConnectionError) as e:
+        logger.error(f"gripes: LLM call failed after retries for {company}: {e}")
+        return None
     if gripes is None:
         return None
     db.upsert_company_gripes(company, gripes)
@@ -177,7 +177,7 @@ def _format_gripes_plain(gripes: dict, company: str) -> str:
 
 
 def _format_gripes_markdown(gripes: dict, company: str) -> str:
-    lines = ["## Employee Gripes", ""]
+    lines = [f"## Employee Gripes ({company})", ""]
     if gripes.get("tldr"):
         lines.append("**TL;DR**")
         for bullet in gripes["tldr"]:
