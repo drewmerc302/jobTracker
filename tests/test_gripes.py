@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 from src.db import Database
 
@@ -36,4 +38,5 @@ def test_upsert_company_gripes_sets_fetched_at(db):
         "SELECT fetched_at FROM company_gripes WHERE company = ?", ("Stripe",)
     ).fetchone()
     assert row is not None
-    assert row["fetched_at"] is not None
+    dt = datetime.fromisoformat(row["fetched_at"])
+    assert dt.tzinfo is not None  # must be timezone-aware UTC string

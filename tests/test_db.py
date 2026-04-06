@@ -21,6 +21,7 @@ def test_creates_tables(db):
     assert "jobs" in table_names
     assert "matches" in table_names
     assert "runs" in table_names
+    assert "company_gripes" in table_names
 
 
 def test_upsert_job_new(db):
