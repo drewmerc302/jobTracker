@@ -19,7 +19,7 @@ Add a `--gripes` flag to `jobtracker` that, when used with `--show-job`, fetches
 
 ### 1. Database Layer (`src/db.py`)
 
-New table:
+New table — add to the `executescript` block inside `_create_tables()` in `db.py` (no separate migration needed; `CREATE TABLE IF NOT EXISTS` handles existing installs):
 ```sql
 CREATE TABLE IF NOT EXISTS company_gripes (
     company     TEXT PRIMARY KEY,
@@ -34,7 +34,7 @@ New methods on `Database`:
 
 ### 2. Gripes Module (`src/steps/gripes.py`)
 
-**Web search**: 3 queries per company using the `WebSearch` MCP tool via subprocess (same pattern as `_web_research` in `interview_prep.py`):
+**Web search**: 3 queries per company using direct HTTP requests (similar to `_web_research` in `interview_prep.py`, but targeting review-focused URLs). Each query is a DuckDuckGo or similar search URL fetched via `urllib.request.urlopen`:
 1. `"{company}" employee reviews site:glassdoor.com`
 2. `"{company}" employees complaints reddit OR blind`
 3. `"{company}" work culture problems`
@@ -46,6 +46,7 @@ Search results concatenated and capped at ~4000 chars.
 ```python
 GRIPES_TOOL = {
     "name": "company_gripes",
+    "description": "Analyze employee reviews and summarize common complaints for a company",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -75,11 +76,11 @@ GRIPES_TOOL = {
 
 **Public function**:
 ```python
-def get_gripes(db: Database, company: str, config: Config, force: bool = False) -> dict
+def get_gripes(db: Database, company: str, config: Config) -> dict | None
 ```
 
 Logic:
-1. Check DB cache; return if fetched_at < 30 days ago (and not `force`)
+1. Check DB cache; return cached result if `fetched_at >= datetime.now(utc) - timedelta(days=30)`
 2. Run 3 web searches, concatenate results
 3. Call LLM with search results
 4. Upsert to DB, return result
@@ -101,7 +102,10 @@ In the `args.show_job` handler, after printing `_format_job_detail(...)`:
 ```python
 if args.gripes:
     gripes = get_gripes(db, job["company"], config)
-    print(_format_gripes(gripes, job["company"], markdown=args.markdown))
+    if gripes:
+        print(_format_gripes(gripes, job["company"], markdown=args.markdown))
+    else:
+        print(f"Could not fetch gripes for {job['company']}")
 ```
 
 ### 4. Output Formatting
@@ -142,7 +146,7 @@ Employee Gripes (Stripe):
     → pipeline.py: show_job handler
     → get_gripes(db, company, config)
         → db.get_company_gripes(company)  [cache hit? return]
-        → _web_search(company)            [3 queries via subprocess WebSearch]
+        → _web_search(company)            [3 queries via urllib.request.urlopen]
         → _call_llm(search_results)       [Haiku + GRIPES_TOOL]
         → db.upsert_company_gripes(company, result)
     → _format_gripes(gripes, company, markdown)
@@ -172,6 +176,6 @@ Employee Gripes (Stripe):
 
 ## Out of Scope
 
-- `--refresh-gripes` flag (can add later)
+- `force` / `--refresh-gripes` flag (can add later; `force` param omitted until then)
 - Gripes integrated into Obsidian notes
 - Gripes shown without `--show-job`
