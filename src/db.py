@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -64,6 +65,11 @@ class Database:
                 old_status TEXT,
                 new_status TEXT NOT NULL,
                 changed_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS company_gripes (
+                company     TEXT PRIMARY KEY,
+                gripes_json TEXT NOT NULL,
+                fetched_at  TEXT NOT NULL
             );
         """)
 
@@ -390,3 +396,23 @@ class Database:
             (today, today),
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def get_company_gripes(self, company: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT gripes_json FROM company_gripes WHERE company = ?", (company,)
+        ).fetchone()
+        return json.loads(row["gripes_json"]) if row else None
+
+    def upsert_company_gripes(self, company: str, gripes: dict):
+        now = datetime.now(timezone.utc).isoformat()
+        self._conn.execute(
+            """
+            INSERT INTO company_gripes (company, gripes_json, fetched_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(company) DO UPDATE SET
+                gripes_json = excluded.gripes_json,
+                fetched_at = excluded.fetched_at
+            """,
+            (company, json.dumps(gripes), now),
+        )
+        self._conn.commit()
