@@ -93,8 +93,8 @@ def test_get_gripes_fetches_when_cache_missing(db, config):
         result = get_gripes(db, "Stripe", config)
     assert result["tldr"][0] == "Slow promotion cycles"
     # Verify it was cached
-    cached = db.get_company_gripes("Stripe")
-    assert cached is not None
+    cached, _ = db.get_company_gripes("Stripe")
+    assert cached["tldr"][0] == "Slow promotion cycles"
 
 
 def test_get_gripes_fetches_when_cache_expired(db, config):
