@@ -1,12 +1,41 @@
-from datetime import datetime
+import json
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
 
 import pytest
+
+from src.config import Config
 from src.db import Database
+from src.steps.gripes import _format_gripes_markdown, _format_gripes_plain, get_gripes
+
+SAMPLE_GRIPES = {
+    "tldr": [
+        "Slow promotion cycles",
+        "High on-call burden",
+        "Poor work-life balance",
+        "Opaque management decisions",
+        "Frequent reorgs",
+    ],
+    "themes": [
+        {
+            "name": "Work-life balance",
+            "summary": "Long hours are normalized.",
+            "detail": "Many employees report 60+ hour weeks during launches. On-call rotations are frequent with limited relief.",
+        }
+    ],
+}
 
 
 @pytest.fixture
 def db(tmp_path):
     return Database(tmp_path / "test.db")
+
+
+@pytest.fixture
+def config():
+    cfg = MagicMock(spec=Config)
+    cfg.llm_filter_model = "claude-haiku-4-5-20251001"
+    return cfg
 
 
 def test_get_company_gripes_returns_none_when_missing(db):
@@ -40,3 +69,72 @@ def test_upsert_company_gripes_sets_fetched_at(db):
     assert row is not None
     dt = datetime.fromisoformat(row["fetched_at"])
     assert dt.tzinfo is not None  # must be timezone-aware UTC string
+
+
+def test_get_gripes_returns_cached_when_fresh(db, config):
+    """Cache hit: no web search or LLM called."""
+    db.upsert_company_gripes("Stripe", SAMPLE_GRIPES)
+    with (
+        patch("src.steps.gripes._web_search") as mock_search,
+        patch("src.steps.gripes._call_llm") as mock_llm,
+    ):
+        result = get_gripes(db, "Stripe", config)
+    mock_search.assert_not_called()
+    mock_llm.assert_not_called()
+    assert result["tldr"][0] == "Slow promotion cycles"
+
+
+def test_get_gripes_fetches_when_cache_missing(db, config):
+    """Cache miss: web search + LLM called, result cached."""
+    with (
+        patch("src.steps.gripes._web_search", return_value="some review text"),
+        patch("src.steps.gripes._call_llm", return_value=SAMPLE_GRIPES),
+    ):
+        result = get_gripes(db, "Stripe", config)
+    assert result["tldr"][0] == "Slow promotion cycles"
+    # Verify it was cached
+    cached = db.get_company_gripes("Stripe")
+    assert cached is not None
+
+
+def test_get_gripes_fetches_when_cache_expired(db, config):
+    """Stale cache (>30 days): re-fetch."""
+    old_date = (datetime.now(timezone.utc) - timedelta(days=31)).isoformat()
+    db._conn.execute(
+        "INSERT INTO company_gripes (company, gripes_json, fetched_at) VALUES (?, ?, ?)",
+        ("Stripe", json.dumps({"tldr": ["old"], "themes": []}), old_date),
+    )
+    db._conn.commit()
+    with (
+        patch("src.steps.gripes._web_search", return_value="fresh text"),
+        patch("src.steps.gripes._call_llm", return_value=SAMPLE_GRIPES),
+    ):
+        result = get_gripes(db, "Stripe", config)
+    assert result["tldr"][0] == "Slow promotion cycles"
+
+
+def test_get_gripes_returns_none_on_llm_failure(db, config):
+    """LLM failure: return None, do not cache."""
+    with (
+        patch("src.steps.gripes._web_search", return_value="text"),
+        patch("src.steps.gripes._call_llm", return_value=None),
+    ):
+        result = get_gripes(db, "Stripe", config)
+    assert result is None
+    assert db.get_company_gripes("Stripe") is None
+
+
+def test_format_gripes_plain_includes_tldr_and_themes():
+    output = _format_gripes_plain(SAMPLE_GRIPES, "Stripe")
+    assert "Stripe" in output
+    assert "Slow promotion cycles" in output
+    assert "Work-life balance" in output
+    assert "Long hours are normalized" in output
+
+
+def test_format_gripes_markdown_structure():
+    output = _format_gripes_markdown(SAMPLE_GRIPES, "Stripe")
+    assert "## Employee Gripes" in output
+    assert "**TL;DR**" in output
+    assert "### Work-life balance" in output
+    assert "*Long hours are normalized.*" in output
