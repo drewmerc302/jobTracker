@@ -48,7 +48,7 @@ def test_upsert_and_get_company_gripes(db):
         "themes": [{"name": "WLB", "summary": "Bad", "detail": "Very bad."}],
     }
     db.upsert_company_gripes("Stripe", gripes)
-    result = db.get_company_gripes("Stripe")
+    result, _ = db.get_company_gripes("Stripe")
     assert result is not None
     assert result["tldr"][0] == "Slow promo cycles"
     assert result["themes"][0]["name"] == "WLB"
@@ -57,7 +57,7 @@ def test_upsert_and_get_company_gripes(db):
 def test_upsert_company_gripes_overwrites_existing(db):
     db.upsert_company_gripes("Stripe", {"tldr": ["v1"], "themes": []})
     db.upsert_company_gripes("Stripe", {"tldr": ["v2"], "themes": []})
-    result = db.get_company_gripes("Stripe")
+    result, _ = db.get_company_gripes("Stripe")
     assert result["tldr"] == ["v2"]
 
 
@@ -122,6 +122,25 @@ def test_get_gripes_returns_none_on_llm_failure(db, config):
         result = get_gripes(db, "Stripe", config)
     assert result is None
     assert db.get_company_gripes("Stripe") is None
+
+
+def test_get_gripes_handles_naive_fetched_at(db, config):
+    """Naive datetime in DB (no tzinfo) should not crash the TTL check."""
+    import json
+
+    naive_ts = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")  # no timezone info
+    db._conn.execute(
+        "INSERT INTO company_gripes (company, gripes_json, fetched_at) VALUES (?, ?, ?)",
+        ("Stripe", json.dumps(SAMPLE_GRIPES), naive_ts),
+    )
+    db._conn.commit()
+    with (
+        patch("src.steps.gripes._web_search") as mock_search,
+        patch("src.steps.gripes._call_llm") as mock_llm,
+    ):
+        result = get_gripes(db, "Stripe", config)
+    assert result is not None
+    mock_search.assert_not_called()
 
 
 def test_format_gripes_plain_includes_tldr_and_themes():

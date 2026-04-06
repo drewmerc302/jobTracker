@@ -397,11 +397,14 @@ class Database:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_company_gripes(self, company: str) -> dict | None:
+    def get_company_gripes(self, company: str) -> tuple[dict, str] | None:
         row = self._conn.execute(
-            "SELECT gripes_json FROM company_gripes WHERE company = ?", (company,)
+            "SELECT gripes_json, fetched_at FROM company_gripes WHERE company = ?",
+            (company,),
         ).fetchone()
-        return json.loads(row["gripes_json"]) if row else None
+        if row is None:
+            return None
+        return json.loads(row["gripes_json"]), row["fetched_at"]
 
     def upsert_company_gripes(self, company: str, gripes: dict):
         now = datetime.now(timezone.utc).isoformat()

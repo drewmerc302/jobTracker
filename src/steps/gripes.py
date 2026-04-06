@@ -22,7 +22,14 @@ _CACHE_TTL_DAYS = 30
 _llm_retry = retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
-    retry=retry_if_exception_type((anthropic.APIError, anthropic.APIConnectionError)),
+    retry=retry_if_exception_type(
+        (
+            anthropic.APIConnectionError,
+            anthropic.APITimeoutError,
+            anthropic.InternalServerError,
+            anthropic.RateLimitError,
+        )
+    ),
     reraise=True,
 )
 
@@ -140,22 +147,24 @@ def get_gripes(db: Database, company: str, config: Config) -> dict | None:
     """Return cached gripes for company, or fetch fresh if stale/missing."""
     cached = db.get_company_gripes(company)
     if cached is not None:
-        row = db._conn.execute(
-            "SELECT fetched_at FROM company_gripes WHERE company = ?", (company,)
-        ).fetchone()
-        if row:
-            fetched_at = datetime.fromisoformat(row["fetched_at"])
-            if fetched_at >= datetime.now(timezone.utc) - timedelta(
-                days=_CACHE_TTL_DAYS
-            ):
-                return cached
+        gripes_dict, fetched_at_str = cached
+        fetched_at = datetime.fromisoformat(fetched_at_str)
+        if fetched_at.tzinfo is None:
+            fetched_at = fetched_at.replace(tzinfo=timezone.utc)
+        if fetched_at >= datetime.now(timezone.utc) - timedelta(days=_CACHE_TTL_DAYS):
+            return gripes_dict
 
     logger.info(f"gripes: fetching reviews for {company}")
     search_text = _web_search(company)
     try:
         gripes = _call_llm(company, search_text, config)
-    except (anthropic.APIError, anthropic.APIConnectionError) as e:
-        logger.error(f"gripes: LLM call failed after retries for {company}: {e}")
+    except (
+        anthropic.APIConnectionError,
+        anthropic.APITimeoutError,
+        anthropic.InternalServerError,
+        anthropic.RateLimitError,
+    ) as e:
+        logger.error(f"gripes: LLM call failed for {company} after retries: {e}")
         return None
     if gripes is None:
         return None
