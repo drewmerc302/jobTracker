@@ -157,3 +157,83 @@ def test_format_gripes_markdown_structure():
     assert "**TL;DR**" in output
     assert "### Work-life balance" in output
     assert "*Long hours are normalized.*" in output
+
+
+from src.pipeline import parse_args, run_pipeline
+
+
+@pytest.fixture
+def pipeline_db(tmp_path):
+    db = Database(tmp_path / "test.db")
+    now = datetime.now(timezone.utc)
+    db.upsert_job(
+        id="stripe:1",
+        company="Stripe",
+        title="EM, Platform",
+        url="https://stripe.com/jobs/1",
+        description="Lead Platform engineering",
+        scraped_at=now,
+    )
+    db.commit()
+    db.insert_match(job_id="stripe:1", relevance_score=0.9, match_reason="good match")
+    return db
+
+
+def test_gripes_flag_parses():
+    args = parse_args(["--show-job", "stripe:1", "--gripes"])
+    assert args.gripes is True
+
+
+def test_show_job_without_gripes_does_not_call_get_gripes(
+    pipeline_db, capsys, tmp_path
+):
+    with (
+        patch("src.pipeline.Database", return_value=pipeline_db),
+        patch("src.pipeline.Config") as MockConfig,
+        patch("src.pipeline.get_gripes") as mock_gripes,
+    ):
+        MockConfig.return_value.db_path = tmp_path / "test.db"
+        args = parse_args(["--show-job", "stripe:1"])
+        run_pipeline(args)
+    mock_gripes.assert_not_called()
+
+
+def test_show_job_with_gripes_prints_gripes(pipeline_db, capsys, tmp_path):
+    with (
+        patch("src.pipeline.Database", return_value=pipeline_db),
+        patch("src.pipeline.Config") as MockConfig,
+        patch("src.pipeline.get_gripes", return_value=SAMPLE_GRIPES),
+    ):
+        MockConfig.return_value.db_path = tmp_path / "test.db"
+        args = parse_args(["--show-job", "stripe:1", "--gripes"])
+        run_pipeline(args)
+    out = capsys.readouterr().out
+    assert "Slow promotion cycles" in out
+    assert "Work-life balance" in out
+
+
+def test_show_job_with_gripes_none_prints_fallback(pipeline_db, capsys, tmp_path):
+    with (
+        patch("src.pipeline.Database", return_value=pipeline_db),
+        patch("src.pipeline.Config") as MockConfig,
+        patch("src.pipeline.get_gripes", return_value=None),
+    ):
+        MockConfig.return_value.db_path = tmp_path / "test.db"
+        args = parse_args(["--show-job", "stripe:1", "--gripes"])
+        run_pipeline(args)
+    out = capsys.readouterr().out
+    assert "Could not fetch gripes" in out
+
+
+def test_show_job_with_gripes_markdown(pipeline_db, capsys, tmp_path):
+    with (
+        patch("src.pipeline.Database", return_value=pipeline_db),
+        patch("src.pipeline.Config") as MockConfig,
+        patch("src.pipeline.get_gripes", return_value=SAMPLE_GRIPES),
+    ):
+        MockConfig.return_value.db_path = tmp_path / "test.db"
+        args = parse_args(["--show-job", "stripe:1", "--gripes", "--markdown"])
+        run_pipeline(args)
+    out = capsys.readouterr().out
+    assert "Employee Gripes" in out
+    assert "**TL;DR**" in out

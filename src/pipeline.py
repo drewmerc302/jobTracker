@@ -15,6 +15,7 @@ from src.steps.tailor import get_active_resume_yaml, run_tailor_for_job
 from src.steps.notify import run_notify
 from src.steps.dedup import run_dedup
 from src.steps.interview_prep import generate_interview_prep
+from src.steps.gripes import get_gripes, _format_gripes_plain, _format_gripes_markdown
 
 logging.basicConfig(
     level=logging.INFO,
@@ -122,6 +123,11 @@ def parse_args(argv=None):
         "--research",
         action="store_true",
         help="Add web research when generating interview prep (use with --interview-prep)",
+    )
+    parser.add_argument(
+        "--gripes",
+        action="store_true",
+        help="Show common employee pain points for the company (use with --show-job)",
     )
     return parser.parse_args(argv)
 
@@ -298,6 +304,12 @@ def _format_job_detail(job, match, db, markdown=False):
         lines.append("\nAdopt specific edits (e.g. 1,3,5):")
         lines.append(f'  uv run jobtracker --tailor-job "{job_id}" --adopt 1,3,5')
     return "\n".join(lines)
+
+
+def _format_gripes(gripes: dict, company: str, markdown: bool = False) -> str:
+    if markdown:
+        return _format_gripes_markdown(gripes, company)
+    return _format_gripes_plain(gripes, company)
 
 
 def run_pipeline(args):
@@ -525,6 +537,12 @@ def run_pipeline(args):
             print(f"No match record for {job_id}")
             return
         print(_format_job_detail(job, match, db, markdown=args.markdown))
+        if args.gripes:
+            gripes = get_gripes(db, job["company"], config)
+            if gripes:
+                print(_format_gripes(gripes, job["company"], markdown=args.markdown))
+            else:
+                print(f"Could not fetch gripes for {job['company']}")
         return
 
     if args.show_all_jobs:
