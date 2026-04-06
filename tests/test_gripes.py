@@ -235,5 +235,5 @@ def test_show_job_with_gripes_markdown(pipeline_db, capsys, tmp_path):
         args = parse_args(["--show-job", "stripe:1", "--gripes", "--markdown"])
         run_pipeline(args)
     out = capsys.readouterr().out
-    assert "## Employee Gripes" in out
+    assert "## Employee Gripes (Stripe)" in out
     assert "**TL;DR**" in out
