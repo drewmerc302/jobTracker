@@ -34,6 +34,16 @@ def test_parse_args_applications():
     assert args.applications is True
 
 
+def test_parse_args_fresh():
+    args = parse_args(["--show-job", "Stripe:123", "--fresh"])
+    assert args.fresh is True
+
+
+def test_parse_args_fresh_default():
+    args = parse_args(["--show-job", "Stripe:123"])
+    assert args.fresh is False
+
+
 def test_full_pipeline_runs_dedup_after_scrape(tmp_path, monkeypatch):
     """Dedup should run automatically after scraping in the full pipeline."""
     from unittest.mock import MagicMock, patch

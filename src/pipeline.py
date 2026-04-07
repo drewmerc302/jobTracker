@@ -11,7 +11,7 @@ from src.scrapers.greenhouse import GreenhouseScraper
 from src.scrapers.workday import WorkdayScraper
 from src.steps.scrape import run_scrape
 from src.steps.filter import run_filter
-from src.steps.tailor import get_active_resume_yaml, run_tailor_for_job
+from src.steps.tailor import get_active_resume_yaml, run_tailor_for_job, ensure_analysis
 from src.steps.notify import run_notify
 from src.steps.dedup import run_dedup
 from src.steps.interview_prep import generate_interview_prep
@@ -128,6 +128,11 @@ def parse_args(argv=None):
         "--gripes",
         action="store_true",
         help="Show common employee pain points for the company (use with --show-job)",
+    )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Force re-analysis even if cached (use with --show-job or --tailor-job)",
     )
     return parser.parse_args(argv)
 
@@ -538,6 +543,12 @@ def run_pipeline(args):
         if not match:
             print(f"No match record for {job_id}")
             return
+        analysis = ensure_analysis(dict(job), db, config, force=args.fresh)
+        # Patch match with updated suggestions for display
+        match = dict(match)
+        match["suggestions"] = json.dumps(
+            {k: v for k, v in analysis.items() if k != "reordered_bullets"}
+        )
         print(_format_job_detail(job, match, db, markdown=args.markdown))
         if args.gripes:
             gripes = get_gripes(db, job["company"], config)
@@ -604,8 +615,11 @@ def run_pipeline(args):
         if not match:
             logger.error(f"No match record for {job_id}. Run the filter step first.")
             return
+
+        # Always force=True: tailor needs reordered_bullets which aren't cached
+        analysis = ensure_analysis(dict(job), db, config, force=True)
+
         resume_yaml_path, resume_data = get_active_resume_yaml(config)
-        evaluation = json.loads(match.get("suggestions") or "{}")
 
         # Parse --adopt flag
         adopt_indices = set()
@@ -620,14 +634,23 @@ def run_pipeline(args):
         output_dir = config.output_dir / run_date
         result = run_tailor_for_job(
             job=dict(job),
-            evaluation=evaluation,
+            analysis=analysis,
             resume_yaml_path=resume_yaml_path,
             resume_data=resume_data,
             output_dir=output_dir,
             config=config,
-            db=db,
             adopt_edits=adopt_indices,
         )
+
+        # Update PDF paths in DB (moved from run_tailor_for_job)
+        db.update_match_paths(
+            job_id,
+            resume_path=str(result["resume_pdf"]) if result.get("resume_pdf") else None,
+            cover_letter_path=str(result["cover_letter_pdf"])
+            if result.get("cover_letter_pdf")
+            else None,
+        )
+
         if result.get("resume_pdf"):
             print(f"Resume PDF:       {result['resume_pdf']}")
         if result.get("cover_letter_pdf"):
@@ -728,30 +751,32 @@ def run_pipeline(args):
             run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M")
             output_dir = config.output_dir / run_date
             unnotified = db.get_unnotified_matches()
-            tailor_matches = [
-                {
-                    "job": dict(m),
-                    "evaluation": json.loads(m.get("suggestions") or "{}"),
-                }
-                for m in unnotified
-                if not m.get("resume_path")
-            ]
+            tailor_matches = [dict(m) for m in unnotified if not m.get("resume_path")]
             logger.info(
                 f"Tailor standalone: found {len(tailor_matches)} untailored matches"
             )
-            for match in tailor_matches:
+            for job in tailor_matches:
                 try:
-                    run_tailor_for_job(
-                        job=match["job"],
-                        evaluation=match["evaluation"],
+                    analysis = ensure_analysis(job, db, config, force=True)
+                    result = run_tailor_for_job(
+                        job=job,
+                        analysis=analysis,
                         resume_yaml_path=resume_yaml_path,
                         resume_data=resume_data,
                         output_dir=output_dir,
                         config=config,
-                        db=db,
+                    )
+                    db.update_match_paths(
+                        job["id"],
+                        resume_path=str(result["resume_pdf"])
+                        if result.get("resume_pdf")
+                        else None,
+                        cover_letter_path=str(result["cover_letter_pdf"])
+                        if result.get("cover_letter_pdf")
+                        else None,
                     )
                 except Exception as e:
-                    logger.error(f"Tailor failed for {match['job']['id']}: {e}")
+                    logger.error(f"Tailor failed for {job['id']}: {e}")
             db.complete_run(
                 run_id,
                 jobs_scraped=0,
