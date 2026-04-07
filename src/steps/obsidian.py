@@ -21,6 +21,7 @@ STATUS_ORDER = [
     ("new", "New"),
     ("rejected", "Rejected"),
     ("withdrawn", "Withdrawn"),
+    ("closed", "Closed"),
 ]
 
 

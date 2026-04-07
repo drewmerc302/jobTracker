@@ -344,14 +344,17 @@ class Database:
             FROM matches m
             JOIN jobs j ON m.job_id = j.id
             LEFT JOIN applications a ON m.job_id = a.job_id
+            WHERE j.closed_at IS NULL
+               OR COALESCE(a.status, 'new') IN ('applied', 'interviewing', 'offer', 'closed')
             ORDER BY
                 CASE COALESCE(a.status, 'new')
                     WHEN 'interviewing' THEN 1
                     WHEN 'offer' THEN 2
                     WHEN 'applied' THEN 3
                     WHEN 'new' THEN 4
-                    WHEN 'rejected' THEN 5
-                    WHEN 'withdrawn' THEN 6
+                    WHEN 'closed' THEN 5
+                    WHEN 'rejected' THEN 6
+                    WHEN 'withdrawn' THEN 7
                 END,
                 m.relevance_score DESC
         """).fetchall()

@@ -515,6 +515,7 @@ def run_pipeline(args):
                    j.first_seen_at
             FROM matches m JOIN jobs j ON m.job_id = j.id
             LEFT JOIN applications a ON m.job_id = a.job_id
+            WHERE j.closed_at IS NULL
             ORDER BY m.relevance_score DESC
         """).fetchall()
         if not rows:
@@ -565,6 +566,7 @@ def run_pipeline(args):
             SELECT m.job_id FROM matches m
             JOIN jobs j ON m.job_id = j.id
             WHERE m.relevance_score >= ?
+              AND j.closed_at IS NULL
             ORDER BY m.relevance_score DESC
         """,
             (min_score,),
