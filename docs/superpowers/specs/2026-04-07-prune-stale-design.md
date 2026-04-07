@@ -98,9 +98,9 @@ Add `closed` as a **system-only** status. It is:
 ### Closed Job Query Filter (Bug Fix)
 
 Add `WHERE j.closed_at IS NULL` to these queries:
-- `--list-matches` SQL query in pipeline.py (~line 511)
-- `--show-all-jobs` SQL query in pipeline.py (~line 562)
-- `get_all_applications()` in db.py — filter out closed jobs from the dashboard query
+- `--list-matches` SQL query in pipeline.py (~line 511) — hide all closed jobs
+- `--show-all-jobs` SQL query in pipeline.py (~line 562) — hide all closed jobs
+- `get_all_applications()` in db.py — smarter filter: hide closed jobs UNLESS the user had an active application (`applied`, `interviewing`, `offer`) or the job was marked `closed`. This keeps closed-with-application jobs visible in the dashboard so the user can track what happened.
 
 ### Obsidian Note Update
 
