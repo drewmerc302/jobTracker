@@ -105,6 +105,17 @@ class GreenhouseScraper(BaseScraper):
             return True
         return None
 
+    def is_job_live(self, url: str) -> bool | None:
+        try:
+            resp = httpx.get(url, timeout=10, follow_redirects=True)
+            if resp.status_code in (404, 410):
+                return False
+            if resp.status_code == 200:
+                return True
+            return None
+        except Exception:
+            return None
+
     def _extract_metadata(self, item: dict, field_name: str) -> str | None:
         for meta in item.get("metadata") or []:
             if meta.get("name") == field_name:

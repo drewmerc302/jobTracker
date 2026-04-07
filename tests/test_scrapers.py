@@ -127,3 +127,132 @@ def test_workday_handles_failure(mock_client_class):
     )
     jobs = scraper.fetch_jobs()
     assert jobs == []
+
+
+@patch("src.scrapers.greenhouse.httpx")
+def test_greenhouse_is_job_live_returns_true_on_200(mock_httpx):
+    from src.scrapers.greenhouse import GreenhouseScraper
+
+    scraper = GreenhouseScraper(board_slug="stripe", company_name="Stripe")
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_httpx.get.return_value = mock_resp
+    assert (
+        scraper.is_job_live("https://job-boards.greenhouse.io/stripe/jobs/123") is True
+    )
+
+
+@patch("src.scrapers.greenhouse.httpx")
+def test_greenhouse_is_job_live_returns_false_on_404(mock_httpx):
+    from src.scrapers.greenhouse import GreenhouseScraper
+
+    scraper = GreenhouseScraper(board_slug="stripe", company_name="Stripe")
+    mock_resp = MagicMock()
+    mock_resp.status_code = 404
+    mock_httpx.get.return_value = mock_resp
+    assert (
+        scraper.is_job_live("https://job-boards.greenhouse.io/stripe/jobs/123") is False
+    )
+
+
+@patch("src.scrapers.greenhouse.httpx")
+def test_greenhouse_is_job_live_returns_none_on_error(mock_httpx):
+    from src.scrapers.greenhouse import GreenhouseScraper
+
+    scraper = GreenhouseScraper(board_slug="stripe", company_name="Stripe")
+    mock_httpx.get.side_effect = Exception("timeout")
+    assert (
+        scraper.is_job_live("https://job-boards.greenhouse.io/stripe/jobs/123") is None
+    )
+
+
+@patch("src.scrapers.workday.httpx")
+def test_workday_is_job_live_returns_true_on_200_with_content(mock_httpx):
+    from src.scrapers.workday import WorkdayScraper
+
+    scraper = WorkdayScraper(
+        company_name="Netflix",
+        base_url="https://netflix.wd1.myworkdayjobs.com",
+        path="/wday/cxs/netflix/netflix",
+        keyword_patterns=[],
+    )
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.text = "<html>Job details here: Engineering Manager</html>"
+    mock_httpx.get.return_value = mock_resp
+    assert scraper.is_job_live("https://netflix.wd1.myworkdayjobs.com/job/123") is True
+
+
+@patch("src.scrapers.workday.httpx")
+def test_workday_is_job_live_returns_false_on_not_available(mock_httpx):
+    from src.scrapers.workday import WorkdayScraper
+
+    scraper = WorkdayScraper(
+        company_name="Netflix",
+        base_url="https://netflix.wd1.myworkdayjobs.com",
+        path="/wday/cxs/netflix/netflix",
+        keyword_patterns=[],
+    )
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.text = "<html>This page is no longer available</html>"
+    mock_httpx.get.return_value = mock_resp
+    assert scraper.is_job_live("https://netflix.wd1.myworkdayjobs.com/job/123") is False
+
+
+@patch("src.scrapers.google.httpx")
+def test_google_is_job_live_returns_false_on_no_longer_available(mock_httpx):
+    from src.scrapers.google import GoogleScraper
+
+    scraper = GoogleScraper()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.text = "<html>This job is no longer available</html>"
+    mock_httpx.get.return_value = mock_resp
+    assert (
+        scraper.is_job_live(
+            "https://www.google.com/about/careers/applications/jobs/results/123"
+        )
+        is False
+    )
+
+
+@patch("src.scrapers.google.httpx")
+def test_google_is_job_live_returns_true_on_valid_content(mock_httpx):
+    from src.scrapers.google import GoogleScraper
+
+    scraper = GoogleScraper()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.text = "<html>Engineering Manager - Apply now" + "x" * 500 + "</html>"
+    mock_httpx.get.return_value = mock_resp
+    assert (
+        scraper.is_job_live(
+            "https://www.google.com/about/careers/applications/jobs/results/123"
+        )
+        is True
+    )
+
+
+@patch("src.scrapers.apple.httpx")
+def test_apple_is_job_live_returns_false_on_not_available(mock_httpx):
+    from src.scrapers.apple import AppleScraper
+
+    scraper = AppleScraper()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.text = "<html>This position is no longer available</html>"
+    mock_httpx.get.return_value = mock_resp
+    assert scraper.is_job_live("https://jobs.apple.com/en-us/details/123") is False
+
+
+@patch("src.scrapers.apple.httpx")
+def test_apple_is_job_live_returns_true_on_valid_content(mock_httpx):
+    from src.scrapers.apple import AppleScraper
+
+    scraper = AppleScraper()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.text = "<html>Engineering Manager - Apply</html>"
+    mock_httpx.get.return_value = mock_resp
+    assert scraper.is_job_live("https://jobs.apple.com/en-us/details/123") is True

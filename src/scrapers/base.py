@@ -26,5 +26,11 @@ class BaseScraper(ABC):
     company_name: str
 
     @abstractmethod
-    def fetch_jobs(self) -> list[RawJob]:
-        ...
+    def fetch_jobs(self) -> list[RawJob]: ...
+
+    def is_job_live(self, url: str) -> bool | None:
+        """Check if a job listing URL is still live.
+        Returns True (live), False (dead), None (ambiguous/unsupported).
+        Subclasses override with ATS-specific logic.
+        """
+        return None

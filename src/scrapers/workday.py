@@ -209,3 +209,17 @@ class WorkdayScraper(BaseScraper):
             if match:
                 return match.group(0)
         return None
+
+    def is_job_live(self, url: str) -> bool | None:
+        try:
+            resp = httpx.get(url, timeout=10, follow_redirects=True)
+            if resp.status_code in (404, 410):
+                return False
+            if resp.status_code == 200:
+                text = resp.text.lower()
+                if "no longer available" in text or "page not found" in text:
+                    return False
+                return True
+            return None
+        except Exception:
+            return None

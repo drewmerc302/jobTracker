@@ -156,7 +156,10 @@ class GoogleScraper(BaseScraper):
         if "signin?jobId=" in url:
             url = re.sub(r"/signin\?jobId=.*", "", url) or url
         # If URL is just the base careers page, construct direct link from job ID
-        if not url or url.rstrip("/") == "https://www.google.com/about/careers/applications":
+        if (
+            not url
+            or url.rstrip("/") == "https://www.google.com/about/careers/applications"
+        ):
             url = f"https://www.google.com/about/careers/applications/jobs/results/{job_id}"
 
         locations_raw = item[IDX_LOCATIONS] if len(item) > IDX_LOCATIONS else []
@@ -183,3 +186,21 @@ class GoogleScraper(BaseScraper):
             seniority=None,
             scraped_at=now,
         )
+
+    def is_job_live(self, url: str) -> bool | None:
+        try:
+            resp = httpx.get(url, timeout=10, follow_redirects=True)
+            if resp.status_code in (404, 410):
+                return False
+            if resp.status_code == 200:
+                text = resp.text.lower()
+                if (
+                    "no longer available" in text
+                    or "not found" in text
+                    or len(resp.text) < 500
+                ):
+                    return False
+                return True
+            return None
+        except Exception:
+            return None
