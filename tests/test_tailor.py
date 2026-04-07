@@ -149,6 +149,7 @@ def test_ensure_analysis_force_reruns_even_with_cache(mock_get_yaml, mock_llm):
     result = ensure_analysis(job, db, config, force=True)
 
     mock_llm.assert_called_once()
+    db.update_match_suggestions.assert_called_once()
     assert result["suggested_edits"] == [
         {"original": "new", "suggested": "new+", "reason": "new"}
     ]
