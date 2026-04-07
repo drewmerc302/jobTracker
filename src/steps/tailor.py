@@ -188,6 +188,53 @@ JOB DESCRIPTION:
     }
 
 
+def ensure_analysis(
+    job: dict, db: Database, config: Config, force: bool = False
+) -> dict:
+    """Run Sonnet resume analysis on-demand, caching results in DB.
+
+    Returns the full analysis dict including reordered_bullets.
+    When served from cache, reordered_bullets is {}.
+    """
+    match = db.get_match(job["id"])
+    existing = json.loads(match.get("suggestions") or "{}") if match else {}
+
+    # Cache hit: suggested_edits already populated and not forcing refresh
+    if existing.get("suggested_edits") and not force:
+        existing.setdefault("reordered_bullets", {})
+        return existing
+
+    # No description: skip LLM, return what we have
+    if not job.get("description"):
+        existing.setdefault("reordered_bullets", {})
+        return existing
+
+    # Cache miss or force: run Sonnet analysis
+    try:
+        resume_yaml_path, resume_data = get_active_resume_yaml(config)
+        resume_yaml_str = yaml.dump(resume_data, default_flow_style=False)
+        analysis = llm_resume_analysis(resume_yaml_str, job["description"], config)
+    except Exception:
+        logger.warning(f"LLM analysis failed for {job['id']}, using cached suggestions")
+        existing.setdefault("reordered_bullets", {})
+        return existing
+
+    # Merge: Sonnet results with Haiku fallbacks
+    merged = {
+        "suggested_edits": analysis.get("suggested_edits", []),
+        "keyword_gaps": analysis.get("keyword_gaps", []),
+        "key_requirements": analysis.get("key_requirements", [])
+        or existing.get("key_requirements", []),
+        "interview_talking_points": analysis.get("interview_talking_points", [])
+        or existing.get("interview_talking_points", []),
+    }
+    db.update_match_suggestions(job["id"], json.dumps(merged))
+
+    # Return full analysis (including reordered_bullets for tailor-job)
+    result = {**merged, "reordered_bullets": analysis.get("reordered_bullets", {})}
+    return result
+
+
 def generate_resume_pdf(
     resume_data: dict, output_dir: Path, config: Config
 ) -> Path | None:

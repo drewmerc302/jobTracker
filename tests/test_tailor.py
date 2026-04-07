@@ -1,11 +1,10 @@
 import json
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 from src.config import Config
-from src.steps.tailor import reorder_resume_yaml, llm_resume_analysis
+from src.steps.tailor import ensure_analysis, llm_resume_analysis, reorder_resume_yaml
 
 
 def test_reorder_resume_yaml():
@@ -62,3 +61,129 @@ def test_llm_analysis_returns_structured_output(mock_anthropic):
     result = llm_resume_analysis("yaml content", "job description", config)
     assert "reordered_bullets" in result
     assert "suggested_edits" in result
+
+
+def test_ensure_analysis_returns_cached_when_edits_exist():
+    """When suggested_edits already exist in DB, return them without LLM call."""
+    db = MagicMock()
+    config = MagicMock()
+    job = {"id": "Stripe:123", "description": "Build stuff"}
+
+    cached_suggestions = {
+        "suggested_edits": [{"original": "a", "suggested": "b", "reason": "kw"}],
+        "keyword_gaps": ["agile"],
+        "key_requirements": ["Python"],
+        "interview_talking_points": ["Led teams"],
+    }
+    db.get_match.return_value = {"suggestions": json.dumps(cached_suggestions)}
+
+    with patch("src.steps.tailor.llm_resume_analysis") as mock_llm:
+        result = ensure_analysis(job, db, config)
+
+    assert result["suggested_edits"] == cached_suggestions["suggested_edits"]
+    assert result.get("reordered_bullets") == {}
+    mock_llm.assert_not_called()
+
+
+@patch("src.steps.tailor.llm_resume_analysis")
+@patch("src.steps.tailor.get_active_resume_yaml")
+def test_ensure_analysis_calls_llm_when_no_edits_cached(mock_get_yaml, mock_llm):
+    """When no suggested_edits in DB, call LLM and write results."""
+    db = MagicMock()
+    config = MagicMock()
+    job = {"id": "Stripe:123", "description": "Build stuff"}
+
+    haiku_suggestions = {
+        "key_requirements": ["Python"],
+        "interview_talking_points": ["Led teams"],
+    }
+    db.get_match.return_value = {"suggestions": json.dumps(haiku_suggestions)}
+
+    mock_get_yaml.return_value = (Path("/fake/resume.yaml"), {"name": "Drew"})
+    mock_llm.return_value = {
+        "reordered_bullets": {"Acme - EM": ["c", "a"]},
+        "suggested_edits": [{"original": "a", "suggested": "b", "reason": "kw"}],
+        "keyword_gaps": ["agile"],
+        "key_requirements": ["React"],
+        "interview_talking_points": [],
+    }
+
+    result = ensure_analysis(job, db, config)
+
+    mock_llm.assert_called_once()
+    db.update_match_suggestions.assert_called_once()
+    written = json.loads(db.update_match_suggestions.call_args[0][1])
+    assert written["suggested_edits"] == [
+        {"original": "a", "suggested": "b", "reason": "kw"}
+    ]
+    assert written["keyword_gaps"] == ["agile"]
+    assert written["interview_talking_points"] == ["Led teams"]  # Haiku fallback
+    assert written["key_requirements"] == ["React"]  # Sonnet had value
+    assert result["reordered_bullets"] == {"Acme - EM": ["c", "a"]}
+
+
+@patch("src.steps.tailor.llm_resume_analysis")
+@patch("src.steps.tailor.get_active_resume_yaml")
+def test_ensure_analysis_force_reruns_even_with_cache(mock_get_yaml, mock_llm):
+    """force=True should call LLM even when cached edits exist."""
+    db = MagicMock()
+    config = MagicMock()
+    job = {"id": "Stripe:123", "description": "Build stuff"}
+
+    cached = {
+        "suggested_edits": [{"original": "old", "suggested": "old+", "reason": "old"}],
+        "key_requirements": ["Python"],
+        "interview_talking_points": ["Led teams"],
+    }
+    db.get_match.return_value = {"suggestions": json.dumps(cached)}
+
+    mock_get_yaml.return_value = (Path("/fake/resume.yaml"), {"name": "Drew"})
+    mock_llm.return_value = {
+        "reordered_bullets": {},
+        "suggested_edits": [{"original": "new", "suggested": "new+", "reason": "new"}],
+        "keyword_gaps": [],
+        "key_requirements": ["Go"],
+        "interview_talking_points": ["Scaled systems"],
+    }
+
+    result = ensure_analysis(job, db, config, force=True)
+
+    mock_llm.assert_called_once()
+    assert result["suggested_edits"] == [
+        {"original": "new", "suggested": "new+", "reason": "new"}
+    ]
+
+
+def test_ensure_analysis_skips_llm_when_no_description():
+    """Jobs with empty description should not trigger LLM call."""
+    db = MagicMock()
+    config = MagicMock()
+    job = {"id": "Stripe:123", "description": ""}
+
+    haiku = {"key_requirements": ["Python"], "interview_talking_points": ["Led teams"]}
+    db.get_match.return_value = {"suggestions": json.dumps(haiku)}
+
+    result = ensure_analysis(job, db, config)
+
+    assert result["key_requirements"] == ["Python"]
+    assert result.get("reordered_bullets") == {}
+
+
+@patch("src.steps.tailor.llm_resume_analysis")
+@patch("src.steps.tailor.get_active_resume_yaml")
+def test_ensure_analysis_catches_llm_error(mock_get_yaml, mock_llm):
+    """LLM errors should be caught, returning cached suggestions."""
+    db = MagicMock()
+    config = MagicMock()
+    job = {"id": "Stripe:123", "description": "Build stuff"}
+
+    haiku = {"key_requirements": ["Python"], "interview_talking_points": ["Led teams"]}
+    db.get_match.return_value = {"suggestions": json.dumps(haiku)}
+
+    mock_get_yaml.return_value = (Path("/fake/resume.yaml"), {"name": "Drew"})
+    mock_llm.side_effect = Exception("API timeout")
+
+    result = ensure_analysis(job, db, config)
+
+    assert result["key_requirements"] == ["Python"]
+    db.update_match_suggestions.assert_not_called()
