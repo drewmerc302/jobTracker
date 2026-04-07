@@ -506,7 +506,8 @@ def run_pipeline(args):
         rows = db._conn.execute("""
             SELECT m.job_id, j.company, j.title, j.location, m.relevance_score,
                    CASE WHEN m.resume_path IS NOT NULL THEN 'yes' ELSE 'no' END as has_pdf,
-                   COALESCE(a.status, 'new') as status
+                   COALESCE(a.status, 'new') as status,
+                   j.first_seen_at
             FROM matches m JOIN jobs j ON m.job_id = j.id
             LEFT JOIN applications a ON m.job_id = a.job_id
             ORDER BY m.relevance_score DESC
@@ -515,14 +516,15 @@ def run_pipeline(args):
             print("No matches found.")
             return
         print(
-            f"{'Score':>5}  {'PDF':>3}  {'Status':<12} {'Company':<12} {'Title':<35} {'Show Command'}"
+            f"{'Score':>5}  {'PDF':>3}  {'Status':<12} {'First Seen':<12} {'Company':<12} {'Title':<35} {'Show Command'}"
         )
-        print("-" * 115)
+        print("-" * 130)
         for r in rows:
-            job_id, company, title, location, score, has_pdf, status = r
+            job_id, company, title, location, score, has_pdf, status, first_seen_at = r
             title_display = title[:33] + ".." if len(title) > 35 else title
+            seen_date = first_seen_at[:10] if first_seen_at else "unknown"
             print(
-                f'{score:>5.0%}  {has_pdf:>3}  {status:<12} {company:<12} {title_display:<35} uv run jobtracker --show-job "{job_id}"'
+                f'{score:>5.0%}  {has_pdf:>3}  {status:<12} {seen_date:<12} {company:<12} {title_display:<35} uv run jobtracker --show-job "{job_id}"'
             )
         return
 
