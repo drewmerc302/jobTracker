@@ -244,6 +244,39 @@ def test_mark_followed_up_resets_date(db):
     assert app["follow_up_after"] > "2000-01-01"  # reset to future
 
 
+def test_close_job(tmp_path):
+    from datetime import datetime, timezone
+    from src.db import Database
+
+    db = Database(tmp_path / "test.db")
+    db.upsert_job(
+        id="Stripe:123",
+        company="Stripe",
+        title="EM",
+        url="https://example.com",
+        location="NYC",
+        remote=False,
+        salary=None,
+        description="test",
+        department=None,
+        seniority=None,
+        scraped_at=datetime.now(timezone.utc),
+    )
+    # Job should be open
+    job = db.get_job("Stripe:123")
+    assert job["closed_at"] is None
+
+    db.close_job("Stripe:123")
+    job = db.get_job("Stripe:123")
+    assert job["closed_at"] is not None
+
+    # Closing again should be a no-op (already closed)
+    first_closed_at = job["closed_at"]
+    db.close_job("Stripe:123")
+    job = db.get_job("Stripe:123")
+    assert job["closed_at"] == first_closed_at
+
+
 def test_mark_followed_up_no_reset_when_no_date(db):
     now = datetime.now(timezone.utc)
     db.upsert_job(

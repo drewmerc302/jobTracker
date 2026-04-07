@@ -169,6 +169,15 @@ class Database:
             )
         self._conn.commit()
 
+    def close_job(self, job_id: str):
+        """Mark a single job as closed."""
+        now = datetime.now(timezone.utc).isoformat()
+        self._conn.execute(
+            "UPDATE jobs SET closed_at = ? WHERE id = ? AND closed_at IS NULL",
+            (now, job_id),
+        )
+        self._conn.commit()
+
     def insert_match(
         self,
         *,
