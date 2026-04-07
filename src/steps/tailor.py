@@ -360,20 +360,16 @@ def generate_cover_letter_pdf(
 
 def run_tailor_for_job(
     job: dict,
-    evaluation: dict,
+    analysis: dict,
     resume_yaml_path: Path,
     resume_data: dict,
     output_dir: Path,
     config: Config,
-    db: Database,
     adopt_edits: set[int] | None = None,
 ) -> dict:
     job_dir = output_dir / f"{job['company']}_{job['id'].replace(':', '_')}"
-    resume_yaml_str = yaml.dump(resume_data, default_flow_style=False)
-    analysis = llm_resume_analysis(resume_yaml_str, job.get("description", ""), config)
     tailored = reorder_resume_yaml(resume_data, analysis.get("reordered_bullets", {}))
 
-    # Apply adopted suggested edits to the resume
     if adopt_edits:
         edits = analysis.get("suggested_edits", [])
         tailored = apply_suggested_edits(tailored, edits, adopt_edits)
@@ -388,22 +384,6 @@ def run_tailor_for_job(
         job_dir,
         config,
     )
-    suggestions = json.dumps(
-        {
-            "suggested_edits": analysis.get("suggested_edits", []),
-            "keyword_gaps": analysis.get("keyword_gaps", []),
-            "key_requirements": analysis.get("key_requirements", [])
-            or evaluation.get("key_requirements", []),
-            "interview_talking_points": analysis.get("interview_talking_points", [])
-            or evaluation.get("interview_talking_points", []),
-        }
-    )
-    db.update_match_paths(
-        job["id"],
-        resume_path=str(resume_pdf) if resume_pdf else None,
-        cover_letter_path=str(cover_letter_pdf) if cover_letter_pdf else None,
-    )
-    db.update_match_suggestions(job["id"], suggestions)
     return {
         "job_id": job["id"],
         "resume_pdf": resume_pdf,

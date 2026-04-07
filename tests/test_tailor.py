@@ -188,3 +188,43 @@ def test_ensure_analysis_catches_llm_error(mock_get_yaml, mock_llm):
 
     assert result["key_requirements"] == ["Python"]
     db.update_match_suggestions.assert_not_called()
+
+
+@patch("src.steps.tailor.generate_cover_letter_pdf")
+@patch("src.steps.tailor.generate_resume_pdf")
+@patch("src.steps.tailor.apply_suggested_edits")
+@patch("src.steps.tailor.reorder_resume_yaml")
+def test_run_tailor_uses_passed_analysis(
+    mock_reorder, mock_apply, mock_resume, mock_cover
+):
+    """run_tailor_for_job should use the analysis dict passed to it, not call LLM."""
+    from src.steps.tailor import run_tailor_for_job
+
+    config = MagicMock()
+    job = {
+        "id": "Stripe:123",
+        "company": "Stripe",
+        "description": "Build stuff",
+        "title": "EM",
+    }
+    analysis = {
+        "reordered_bullets": {"Acme - EM": ["c", "a"]},
+        "suggested_edits": [{"original": "a", "suggested": "b", "reason": "kw"}],
+    }
+
+    mock_reorder.return_value = {"experience": []}
+    mock_resume.return_value = Path("/out/resume.pdf")
+    mock_cover.return_value = Path("/out/cover.pdf")
+
+    result = run_tailor_for_job(
+        job=job,
+        analysis=analysis,
+        resume_yaml_path=Path("/fake/resume.yaml"),
+        resume_data={"name": "Drew"},
+        output_dir=Path("/tmp/out"),
+        config=config,
+    )
+
+    mock_reorder.assert_called_once_with({"name": "Drew"}, {"Acme - EM": ["c", "a"]})
+    assert result["resume_pdf"] == Path("/out/resume.pdf")
+    assert result["analysis"] == analysis
