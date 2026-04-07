@@ -7,7 +7,7 @@ Automated job tracker for engineering manager roles. Scrapes multiple job boards
 1. **Scrape** — fetches new postings from Greenhouse (Dropbox, DataDog, Stripe, GitLab), Workday (Capital One, Netflix), Apple Jobs, and Google Careers
 2. **Dedup** — merges duplicate listings that appear across multiple boards (same company + normalized title)
 3. **Filter** — keyword pre-filter by title + location, then Claude Haiku scores each job for relevance against your resume
-4. **Tailor** — Claude Sonnet analyzes the job description and suggests resume edits; generates tailored PDF resume and cover letter
+4. **Tailor** — Claude Sonnet analyzes the job description and suggests resume edits; generates tailored PDF resume and cover letter (analysis runs on-demand when viewing a job and is cached)
 5. **Notify** — sends an HTML email digest with match scores, salary, location, direct links, and overdue follow-up reminders
 6. **Follow-up tracking** — automatically sets follow-up dates when you apply or enter interviews; reminds you in each digest
 7. **Interview prep** — Claude generates company research, role-specific questions, and talking points; patches your Obsidian note
@@ -49,11 +49,16 @@ uv run jobtracker --step dedup   # merge duplicate listings
 
 # Query tools
 uv run jobtracker --list-matches
-uv run jobtracker --show-job "Stripe:7609424"
+uv run jobtracker --show-job "Stripe:7609424"          # triggers Sonnet analysis on first view, cached after
+uv run jobtracker --show-job "Stripe:7609424" --fresh   # force re-analysis (e.g. after resume update)
 uv run jobtracker --tailor-job "Stripe:7609424"
 
 # Adopt suggested resume edits when generating PDFs
 uv run jobtracker --tailor-job "Stripe:7609424" --adopt 1,3,5
+
+# Prune stale listings — validate URLs, close dead jobs
+uv run jobtracker --prune-stale                        # standalone
+uv run jobtracker --list-matches --prune-stale         # prune then list
 
 # Application tracking
 uv run jobtracker --applications
@@ -94,16 +99,18 @@ scrape.py → dedup.py → filter.py → tailor.py → notify.py
 | Scrape | `src/steps/scrape.py` | Runs all scrapers concurrently |
 | Dedup | `src/steps/dedup.py` | Merges duplicates by normalized title |
 | Filter | `src/steps/filter.py` | Keyword filter + LLM scoring |
-| Tailor | `src/steps/tailor.py` | Resume analysis + PDF generation |
+| Tailor | `src/steps/tailor.py` | On-demand resume analysis (cached) + PDF generation |
 | Notify | `src/steps/notify.py` | HTML email digest with follow-up reminders |
 | Obsidian | `src/steps/obsidian.py` | Markdown notes for job applications |
 | Interview Prep | `src/steps/interview_prep.py` | LLM-generated prep patched into Obsidian notes |
 | Database | `src/db.py` | SQLite (WAL mode) |
 | Config | `src/config.py` | Keywords, locations, company boards |
 
-**Scrapers** (`src/scrapers/`): `greenhouse.py`, `workday.py`, `apple.py`, `google.py`
+**Scrapers** (`src/scrapers/`): `greenhouse.py`, `workday.py`, `apple.py`, `google.py` — each implements `is_job_live(url)` for stale listing detection
 
 **Database tables:** `jobs`, `matches`, `applications`, `status_history`, `runs`
+
+**Application statuses:** `new`, `applied`, `interviewing`, `offer`, `rejected`, `withdrawn`, `closed` (system-only — set when `--prune-stale` finds a dead listing with an active application)
 
 **Job ID format:** `"Company:external_id"` — used in CLI commands and as DB primary key
 
