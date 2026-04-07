@@ -134,6 +134,11 @@ def parse_args(argv=None):
         action="store_true",
         help="Force re-analysis even if cached (use with --show-job or --tailor-job)",
     )
+    parser.add_argument(
+        "--prune-stale",
+        action="store_true",
+        help="Validate job listing URLs and close dead listings. Works standalone or with --list-matches.",
+    )
     return parser.parse_args(argv)
 
 
@@ -506,6 +511,72 @@ def run_pipeline(args):
         generate_interview_prep(db, job_id, research=research)
         print(f"Interview prep written to Obsidian: {job['company']} — {job['title']}")
         return
+
+    if args.prune_stale:
+        import time as _time
+
+        scrapers = build_scrapers(config)
+        scraper_map = {s.company_name: s for s in scrapers}
+
+        # Get all open matches
+        rows = db._conn.execute("""
+            SELECT m.job_id, j.company, j.title, j.url,
+                   COALESCE(a.status, 'new') as app_status
+            FROM matches m
+            JOIN jobs j ON m.job_id = j.id
+            LEFT JOIN applications a ON m.job_id = a.job_id
+            WHERE j.closed_at IS NULL
+            ORDER BY j.company, m.relevance_score DESC
+        """).fetchall()
+
+        pruned = 0
+        active_closed = 0
+        current_company = None
+        for row in rows:
+            job_id = row["job_id"]
+            company = row["company"]
+            title = row["title"]
+            url = row["url"]
+            app_status = row["app_status"]
+
+            scraper = scraper_map.get(company)
+            if not scraper:
+                print(f"Skipped (no scraper): {company} \u2014 {title}")
+                continue
+
+            # Rate limit: 0.5s delay between requests to same company
+            if company == current_company:
+                _time.sleep(0.5)
+            current_company = company
+
+            result = scraper.is_job_live(url)
+            if result is False:
+                db.close_job(job_id)
+                if app_status in ("applied", "interviewing"):
+                    db.set_application_status(job_id, "closed")
+                    print(
+                        f"\u26a0 CLOSED: {company} \u2014 {title} (status was: {app_status})"
+                    )
+                    from src.steps.obsidian import write_application_note
+
+                    write_application_note(job_id, db, config)
+                    active_closed += 1
+                else:
+                    print(f"Pruned: {company} \u2014 {title}")
+                pruned += 1
+            elif result is None:
+                print(f"Skipped (unreachable): {company} \u2014 {title}")
+
+        # Update dashboard if any active applications were closed
+        if active_closed > 0:
+            from src.steps.obsidian import write_dashboard
+
+            write_dashboard(db, config)
+
+        print(f"\nPruned {pruned} jobs ({active_closed} with active applications)")
+
+        if not args.list_matches:
+            return
 
     if args.list_matches:
         rows = db._conn.execute("""

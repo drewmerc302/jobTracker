@@ -44,6 +44,22 @@ def test_parse_args_fresh_default():
     assert args.fresh is False
 
 
+def test_parse_args_prune_stale():
+    args = parse_args(["--prune-stale"])
+    assert args.prune_stale is True
+
+
+def test_parse_args_prune_stale_default():
+    args = parse_args([])
+    assert args.prune_stale is False
+
+
+def test_parse_args_prune_stale_with_list_matches():
+    args = parse_args(["--list-matches", "--prune-stale"])
+    assert args.prune_stale is True
+    assert args.list_matches is True
+
+
 def test_full_pipeline_runs_dedup_after_scrape(tmp_path, monkeypatch):
     """Dedup should run automatically after scraping in the full pipeline."""
     from unittest.mock import MagicMock, patch
