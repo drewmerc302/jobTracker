@@ -53,8 +53,24 @@ ANALYSIS_TOOL = {
                 "items": {"type": "string"},
                 "description": "Keywords in the JD missing from the resume",
             },
+            "key_requirements": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Top requirements from the job description",
+            },
+            "interview_talking_points": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "What the candidate should emphasize in interviews",
+            },
         },
-        "required": ["reordered_bullets", "suggested_edits", "keyword_gaps"],
+        "required": [
+            "reordered_bullets",
+            "suggested_edits",
+            "keyword_gaps",
+            "key_requirements",
+            "interview_talking_points",
+        ],
     },
 }
 
@@ -149,7 +165,8 @@ def llm_resume_analysis(
                 "role": "user",
                 "content": f"""Analyze this resume against the job description. Reorder bullets to prioritize
 relevance to the JD, suggest wording improvements for better keyword alignment,
-and identify keyword gaps.
+identify keyword gaps, extract the top requirements from the job description,
+and suggest what the candidate should emphasize in interviews.
 
 RESUME (YAML):
 {resume_yaml_str}
@@ -162,7 +179,13 @@ JOB DESCRIPTION:
     for block in response.content:
         if block.type == "tool_use":
             return block.input
-    return {"reordered_bullets": {}, "suggested_edits": [], "keyword_gaps": []}
+    return {
+        "reordered_bullets": {},
+        "suggested_edits": [],
+        "keyword_gaps": [],
+        "key_requirements": [],
+        "interview_talking_points": [],
+    }
 
 
 def generate_resume_pdf(
@@ -322,8 +345,10 @@ def run_tailor_for_job(
         {
             "suggested_edits": analysis.get("suggested_edits", []),
             "keyword_gaps": analysis.get("keyword_gaps", []),
-            "key_requirements": evaluation.get("key_requirements", []),
-            "interview_talking_points": evaluation.get("interview_talking_points", []),
+            "key_requirements": analysis.get("key_requirements", [])
+            or evaluation.get("key_requirements", []),
+            "interview_talking_points": analysis.get("interview_talking_points", [])
+            or evaluation.get("interview_talking_points", []),
         }
     )
     db.update_match_paths(

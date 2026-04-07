@@ -155,6 +155,9 @@ class GoogleScraper(BaseScraper):
         # Fix signin URL to direct job URL
         if "signin?jobId=" in url:
             url = re.sub(r"/signin\?jobId=.*", "", url) or url
+        # If URL is just the base careers page, construct direct link from job ID
+        if not url or url.rstrip("/") == "https://www.google.com/about/careers/applications":
+            url = f"https://www.google.com/about/careers/applications/jobs/results/{job_id}"
 
         locations_raw = item[IDX_LOCATIONS] if len(item) > IDX_LOCATIONS else []
         location = locations_raw[0][0] if locations_raw and locations_raw[0] else None
