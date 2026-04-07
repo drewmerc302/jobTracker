@@ -172,7 +172,9 @@ def _format_prep_content(prep: dict) -> str:
 
 
 @_llm_retry
-def _call_llm(job: dict, resume_data: dict, extra_context: str = "") -> dict:
+def _call_llm(
+    job: dict, resume_data: dict, config: Config, extra_context: str = ""
+) -> dict:
     client = anthropic.Anthropic()
 
     resume_text = yaml.dump(resume_data, default_flow_style=False)[:4000]
@@ -245,7 +247,7 @@ def generate_interview_prep(
         extra_context = _web_research(job["company"])
 
     try:
-        prep = _call_llm(job, resume_data, extra_context)
+        prep = _call_llm(job, resume_data, config, extra_context)
     except Exception as e:
         logger.error(f"interview_prep: LLM call failed for {job_id}: {e}")
         return
