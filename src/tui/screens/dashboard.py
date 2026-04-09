@@ -1,6 +1,7 @@
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
+from textual.binding import Binding
 from textual.widgets import Static, DataTable, Footer
 
 
@@ -41,6 +42,7 @@ class DashboardScreen(Screen):
     """Landing screen with summary cards and recent data."""
 
     BINDINGS = [
+        Binding("space", "open_detail", "Open", show=False),
         ("m", "app.switch_screen('matches')", "Matches"),
         ("a", "app.switch_screen('applications')", "Applications"),
         ("p", "app.switch_screen('pipeline')", "Pipeline"),
@@ -103,7 +105,7 @@ class DashboardScreen(Screen):
                     classes="section-header",
                     id="recent-matches-header",
                 )
-                table = DataTable(id="recent-matches")
+                table = DataTable(id="recent-matches", cursor_type="row")
                 table.add_columns("Score", "Company", "Title", "Status")
                 yield table
 
@@ -172,6 +174,15 @@ class DashboardScreen(Screen):
         else:
             status_text = "No runs recorded"
         self.query_one("#pipeline-status", Static).update(f"  {status_text}")
+
+    def action_open_detail(self) -> None:
+        table = self.query_one("#recent-matches", DataTable)
+        if table.row_count == 0:
+            return
+        row_key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key
+        job_id = str(row_key.value)
+        if job_id:
+            self.app.action_show_job(job_id)
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         if event.data_table.id == "recent-matches":
