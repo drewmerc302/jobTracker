@@ -1,0 +1,88 @@
+/* GitHub dark theme */
+Screen {
+    background: #0d1117;
+}
+
+Header {
+    background: #161b22;
+    color: #58a6ff;
+    dock: top;
+    height: 1;
+}
+
+Footer {
+    background: #161b22;
+}
+
+DataTable {
+    background: #0d1117;
+}
+
+DataTable > .datatable--header {
+    background: #0d1117;
+    color: #484f58;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: #1f3a5f;
+    color: #ffffff;
+}
+
+#summary-cards {
+    layout: horizontal;
+    height: auto;
+    padding: 1;
+}
+
+.summary-card {
+    background: #161b22;
+    border: solid #30363d;
+    padding: 1 2;
+    width: 1fr;
+    margin: 0 1;
+    height: auto;
+}
+
+.summary-card .card-value {
+    text-style: bold;
+    color: #c9d1d9;
+}
+
+.card-value.green { color: #3fb950; }
+.card-value.blue { color: #58a6ff; }
+.card-value.red { color: #f85149; }
+
+.section-header {
+    background: #161b22;
+    color: #58a6ff;
+    text-style: bold;
+    padding: 0 1;
+    border-bottom: solid #30363d;
+    height: 1;
+}
+
+.status-new { color: #f0883e; }
+.status-applied { color: #3fb950; }
+.status-interviewing { color: #a371f7; }
+.status-offer { color: #f0883e; }
+.status-rejected { color: #8b949e; }
+.status-withdrawn { color: #8b949e; }
+.status-closed { color: #8b949e; }
+
+.score-high { color: #3fb950; }
+.score-mid { color: #58a6ff; }
+.score-low { color: #c9d1d9; }
+
+#dashboard-body {
+    layout: horizontal;
+    height: 1fr;
+}
+
+#left-panel {
+    width: 3fr;
+}
+
+#right-panel {
+    width: 2fr;
+}
