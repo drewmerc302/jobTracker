@@ -13,6 +13,24 @@ from textual.worker import Worker
 class EditCheckbox(Checkbox):
     """A checkbox for a suggested resume edit."""
 
+    DEFAULT_CSS = """
+    EditCheckbox {
+        background: #161b22;
+        padding: 0 1;
+        border: none;
+        height: auto;
+    }
+    EditCheckbox:focus {
+        background: #1f3a5f;
+    }
+    EditCheckbox > .toggle--button {
+        color: #484f58;
+    }
+    EditCheckbox.-on > .toggle--button {
+        color: #3fb950;
+    }
+    """
+
     def __init__(self, index: int, edit: dict):
         label = f"[{index}] {edit['original'][:60]} → {edit['suggested'][:60]}"
         super().__init__(label, id=f"edit-{index}")
@@ -23,6 +41,10 @@ class JobDetailScreen(Screen):
     """Full job analysis with interactive edit selection."""
 
     BINDINGS = [
+        Binding("j", "next_edit", "Next edit", show=False),
+        Binding("k", "prev_edit", "Prev edit", show=False),
+        Binding("down", "next_edit", "Next edit", show=False),
+        Binding("up", "prev_edit", "Prev edit", show=False),
         Binding("t", "tailor", "Tailor PDF", show=True),
         Binding("e", "adopt_selected", "Adopt selected", show=True),
         Binding("E", "adopt_all", "Adopt all", show=True, key_display="⇧E"),
@@ -94,46 +116,90 @@ class JobDetailScreen(Screen):
         content = self.query_one("#job-content", VerticalScroll)
 
         content.mount(Static("  WHY THIS MATCHES", classes="section-header"))
-        content.mount(Static(f"  {match['match_reason']}"))
+        content.mount(Static(f"  [#c9d1d9]{match['match_reason']}[/]"))
 
         if suggestions.get("key_requirements"):
             content.mount(Static("  KEY REQUIREMENTS", classes="section-header"))
             for req in suggestions["key_requirements"]:
-                content.mount(Static(f"  • {req}"))
+                content.mount(Static(f"  [#8b949e]•[/] [#c9d1d9]{req}[/]"))
 
         if suggestions.get("interview_talking_points"):
             content.mount(
                 Static("  INTERVIEW TALKING POINTS", classes="section-header")
             )
             for tp in suggestions["interview_talking_points"]:
-                content.mount(Static(f"  • {tp}"))
+                content.mount(Static(f"  [#8b949e]•[/] [#c9d1d9]{tp}[/]"))
 
         edits = suggestions.get("suggested_edits", [])
         if edits:
             content.mount(
                 Static(
-                    "  SUGGESTED RESUME EDITS  (Space=toggle, e=adopt selected, E=adopt all)",
+                    "  SUGGESTED RESUME EDITS  [#8b949e](↑↓/jk=navigate, Space=toggle, e=adopt selected, E=adopt all)[/]",
                     classes="section-header",
                 )
             )
             for i, edit in enumerate(edits, 1):
                 content.mount(EditCheckbox(i, edit))
-                content.mount(Static(f"    Current:   {edit['original']}"))
-                content.mount(Static(f"    Suggested: {edit['suggested']}"))
-                content.mount(Static(f"    Why: {edit['reason']}"))
+                content.mount(
+                    Static(f"    [#f85149]Current:[/]   [#8b949e]{edit['original']}[/]")
+                )
+                content.mount(
+                    Static(
+                        f"    [#3fb950]Suggested:[/] [#c9d1d9]{edit['suggested']}[/]"
+                    )
+                )
+                content.mount(
+                    Static(f"    [#58a6ff]Why:[/] [#8b949e]{edit['reason']}[/]")
+                )
                 content.mount(Static(""))
+            # Focus first checkbox so space/enter can toggle
+            self.set_timer(0.1, self._focus_first_checkbox)
 
         if suggestions.get("keyword_gaps"):
             gaps = ", ".join(suggestions["keyword_gaps"])
             content.mount(Static("  KEYWORD GAPS", classes="section-header"))
-            content.mount(Static(f"  {gaps}"))
+            content.mount(Static(f"  [#f0883e]{gaps}[/]"))
 
         if match.get("resume_path") or match.get("cover_letter_path"):
             content.mount(Static("  GENERATED PDFs", classes="section-header"))
             if match.get("resume_path"):
-                content.mount(Static(f"  Resume: {match['resume_path']}"))
+                content.mount(Static(f"  [#3fb950]Resume:[/] {match['resume_path']}"))
             if match.get("cover_letter_path"):
-                content.mount(Static(f"  Cover letter: {match['cover_letter_path']}"))
+                content.mount(
+                    Static(f"  [#3fb950]Cover letter:[/] {match['cover_letter_path']}")
+                )
+
+    def _focus_first_checkbox(self) -> None:
+        checkboxes = list(self.query(EditCheckbox))
+        if checkboxes:
+            checkboxes[0].focus()
+            checkboxes[0].scroll_visible()
+
+    def action_next_edit(self) -> None:
+        checkboxes = list(self.query(EditCheckbox))
+        if not checkboxes:
+            return
+        focused = self.focused
+        if isinstance(focused, EditCheckbox):
+            idx = checkboxes.index(focused)
+            nxt = checkboxes[(idx + 1) % len(checkboxes)]
+        else:
+            nxt = checkboxes[0]
+        nxt.focus()
+        nxt.scroll_visible()
+
+    def action_prev_edit(self) -> None:
+        checkboxes = list(self.query(EditCheckbox))
+        if not checkboxes:
+            return
+        focused = self.focused
+        if isinstance(focused, EditCheckbox):
+            idx = checkboxes.index(focused)
+            nxt = checkboxes[(idx - 1) % len(checkboxes)]
+        else:
+            nxt = checkboxes[-1]
+        nxt.focus()
+        nxt.scroll_visible()
 
     def _get_selected_edit_indices(self) -> set[int]:
         indices = set()

@@ -74,6 +74,19 @@ DataTable > .datatable--cursor {
 .score-mid { color: #58a6ff; }
 .score-low { color: #c9d1d9; }
 
+/* Job detail screen */
+#job-header {
+    background: #161b22;
+    color: #58a6ff;
+    text-style: bold;
+    padding: 1 2;
+    border-bottom: solid #30363d;
+}
+
+#job-content {
+    padding: 0 1;
+}
+
 #dashboard-body {
     layout: horizontal;
     height: 1fr;
