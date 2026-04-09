@@ -59,3 +59,34 @@ async def test_matches_screen_shows_jobs(seeded_db):
 
         table = app.screen.query_one("#matches-table", DataTable)
         assert table.row_count == 3
+
+
+@pytest.mark.asyncio
+async def test_job_detail_shows_analysis(seeded_db):
+    """Test that job detail screen displays match data."""
+    from src.tui.app import JobTrackerApp
+    import json
+
+    suggestions = json.dumps(
+        {
+            "key_requirements": ["5+ years management"],
+            "suggested_edits": [
+                {
+                    "original": "Led team",
+                    "suggested": "Led distributed team",
+                    "reason": "scope",
+                }
+            ],
+            "keyword_gaps": ["fintech"],
+            "interview_talking_points": ["scaling teams"],
+        }
+    )
+    seeded_db.update_match_suggestions("co:0", suggestions)
+
+    app = JobTrackerApp()
+    app._db_override = seeded_db
+    async with app.run_test() as pilot:
+        app.action_show_job("co:0")
+        await pilot.pause()
+        header = app.screen.query_one("#job-header")
+        assert "TestCo" in str(header.render())

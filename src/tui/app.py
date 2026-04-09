@@ -3,6 +3,7 @@ from pathlib import Path
 from textual.app import App
 
 from src.tui.screens.dashboard import DashboardScreen
+from src.tui.screens.job_detail import JobDetailScreen
 from src.tui.screens.matches import MatchesScreen
 
 
@@ -64,7 +65,44 @@ class JobTrackerApp(App):
             self.notify(f"Screen '{screen_name}' not yet implemented")
 
     def action_show_job(self, job_id: str) -> None:
-        self.notify(f"Job detail for {job_id} — not yet implemented")
+        self.push_screen(JobDetailScreen(job_id))
+
+    def action_set_job_status(self, job_id: str) -> None:
+        from src.tui.widgets.status_popup import StatusPopup
+
+        self.push_screen(StatusPopup(job_id), self._on_status_set)
+
+    def _on_status_set(self, result: tuple[str, str] | None) -> None:
+        if result:
+            job_id, new_status = result
+            self.db.set_application_status(job_id, new_status)
+            if new_status in ("applied", "interviewing"):
+                from src.pipeline import _compute_follow_up_date
+
+                app = self.db.get_application(job_id)
+                follow_up = _compute_follow_up_date(
+                    app.get("applied_date") if app else None
+                )
+                self.db.set_follow_up_date(job_id, follow_up)
+            if new_status == "interviewing":
+                try:
+                    from src.steps.interview_prep import generate_interview_prep
+
+                    generate_interview_prep(self.db, job_id)
+                except Exception:
+                    pass
+            try:
+                from src.steps.obsidian import write_application_note, write_dashboard
+
+                write_application_note(job_id, self.db, self.config)
+                write_dashboard(self.db, self.config)
+            except Exception:
+                pass
+            self.notify(f"Status → {new_status}")
+
+    def action_tailor_job(self, job_id: str) -> None:
+        """Quick tailor from matches list — push to job detail."""
+        self.push_screen(JobDetailScreen(job_id))
 
     def action_help(self) -> None:
         self.notify("Help: d=Dashboard  m=Matches  a=Apps  p=Pipeline  q=Quit")
