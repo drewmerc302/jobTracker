@@ -165,9 +165,14 @@ class JobDetailScreen(Screen):
                 content.mount(Static(""))
 
         if suggestions.get("keyword_gaps"):
-            gaps = ", ".join(suggestions["keyword_gaps"])
             content.mount(Static("  KEYWORD GAPS", classes="section-header"))
-            content.mount(Static(f"  [#f0883e]{gaps}[/]"))
+            content.mount(
+                Static(
+                    "  [#8b949e]Keywords from the job posting missing from your resume:[/]"
+                )
+            )
+            for gap in suggestions["keyword_gaps"]:
+                content.mount(Static(f"  [#f0883e]• {gap}[/]"))
 
         if match.get("resume_path") or match.get("cover_letter_path"):
             content.mount(Static("  GENERATED PDFs", classes="section-header"))
@@ -284,7 +289,7 @@ class JobDetailScreen(Screen):
         if opened:
             self.notify("PDFs opened")
         else:
-            self.notify("No PDFs generated yet — press [t] to generate")
+            self.notify("No PDFs generated yet — press \\[t] to generate")
 
     def action_set_status(self) -> None:
         self.app.action_set_job_status(self.job_id)
@@ -300,6 +305,22 @@ class JobDetailScreen(Screen):
         self.app.call_from_thread(self.notify, "Interview prep written to Obsidian")
 
     def action_gripes(self) -> None:
+        from datetime import datetime, timedelta, timezone
+
+        job = self.app.db.get_job(self.job_id)
+        if not job:
+            return
+        # Check cache on main thread — instant if cached
+        cached = self.app.db.get_company_gripes(job["company"])
+        if cached is not None:
+            gripes_dict, fetched_at_str = cached
+            fetched_at = datetime.fromisoformat(fetched_at_str)
+            if fetched_at.tzinfo is None:
+                fetched_at = fetched_at.replace(tzinfo=timezone.utc)
+            if fetched_at >= datetime.now(timezone.utc) - timedelta(days=30):
+                self._mount_gripes(gripes_dict)
+                return
+        # Cache miss — fetch in background
         self.notify("Fetching company gripes...")
         self.run_worker(self._do_gripes, thread=True, name="gripes")
 
@@ -314,6 +335,7 @@ class JobDetailScreen(Screen):
     def _mount_gripes(self, gripes: dict) -> None:
         """Mount gripes content — must be called on the main thread."""
         content = self.query_one("#job-content", VerticalScroll)
+        content.mount(Static(""))
         content.mount(Static("  COMPANY GRIPES", classes="section-header"))
         if gripes.get("tldr"):
             for bullet in gripes["tldr"]:
@@ -323,6 +345,8 @@ class JobDetailScreen(Screen):
             content.mount(Static(f"  [#f0883e]{theme['summary']}[/]"))
             content.mount(Static(f"  [#8b949e]{theme['detail']}[/]"))
             content.mount(Static(""))
+        # Scroll to bottom where gripes were appended
+        self.set_timer(0.2, lambda: content.scroll_end(animate=False))
 
     def action_open_url(self) -> None:
         job = self.app.db.get_job(self.job_id)

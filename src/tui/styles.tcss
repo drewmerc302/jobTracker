@@ -59,7 +59,7 @@ DataTable > .datatable--cursor {
     text-style: bold;
     padding: 0 1;
     border-bottom: solid #30363d;
-    height: 1;
+    height: auto;
 }
 
 .status-new { color: #f0883e; }
