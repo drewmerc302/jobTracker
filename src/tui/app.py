@@ -3,6 +3,7 @@ from pathlib import Path
 from textual.app import App
 
 from src.tui.screens.dashboard import DashboardScreen
+from src.tui.screens.matches import MatchesScreen
 
 
 class JobTrackerApp(App):
@@ -13,6 +14,7 @@ class JobTrackerApp(App):
 
     SCREENS = {
         "dashboard": DashboardScreen,
+        "matches": MatchesScreen,
     }
 
     BINDINGS = [

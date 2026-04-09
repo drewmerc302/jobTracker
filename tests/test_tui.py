@@ -45,3 +45,17 @@ async def test_dashboard_mounts(seeded_db):
         # Check that summary cards rendered (look for the total matches value)
         text = str(app.screen)
         assert app.screen is not None
+
+
+@pytest.mark.asyncio
+async def test_matches_screen_shows_jobs(seeded_db):
+    from src.tui.app import JobTrackerApp
+
+    app = JobTrackerApp()
+    app._db_override = seeded_db
+    async with app.run_test() as pilot:
+        await pilot.press("m")  # Navigate to matches
+        from textual.widgets import DataTable
+
+        table = app.screen.query_one("#matches-table", DataTable)
+        assert table.row_count == 3
