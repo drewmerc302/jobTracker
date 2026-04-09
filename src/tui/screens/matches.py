@@ -149,10 +149,16 @@ class MatchesScreen(Screen):
     def action_dismiss(self) -> None:
         job_id = self._get_selected_job_id()
         if job_id:
+            table = self.query_one("#matches-table", DataTable)
+            cursor_row = table.cursor_coordinate.row
             job = self.app.db.get_job(job_id)
             self.app.db.dismiss_match(job_id)
             self._load_data()
             self._update_filter_bar()
+            # Restore cursor near previous position
+            if table.row_count > 0:
+                new_row = min(cursor_row, table.row_count - 1)
+                table.move_cursor(row=new_row)
             name = f"{job['company']} — {job['title']}" if job else job_id
             self.notify(f"Dismissed: {name}")
 
@@ -160,13 +166,21 @@ class MatchesScreen(Screen):
 class FilterInput(Screen):
     """Modal screen for entering filter text."""
 
+    DEFAULT_CSS = """
+    FilterInput { align: center middle; }
+    #filter-dialog { background: #161b22; border: solid #30363d; padding: 1 2; width: 60; height: auto; }
+    """
+
     def __init__(self, current: str = ""):
         super().__init__()
         self._current = current
 
     def compose(self) -> ComposeResult:
-        yield Static("  Filter by company or title (Enter to apply, Esc to cancel):")
-        yield Input(value=self._current, placeholder="Type to filter...")
+        with Vertical(id="filter-dialog"):
+            yield Static(
+                "  Filter by company or title (Enter to apply, Esc to cancel):"
+            )
+            yield Input(value=self._current, placeholder="Type to filter...")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         self.dismiss(event.value)

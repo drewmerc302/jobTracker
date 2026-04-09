@@ -48,56 +48,13 @@ class DashboardScreen(Screen):
     ]
 
     def compose(self) -> ComposeResult:
-        db = self.app.db
-
-        # Stats
-        stats = db.get_match_stats()
-        overdue = db.get_overdue_follow_ups()
-        apps = db.get_all_applications()
-        active_count = sum(
-            1 for a in apps if a.get("status") in ("applied", "interviewing", "offer")
-        )
-        active_detail = []
-        for s in ("applied", "interviewing", "offer"):
-            c = sum(1 for a in apps if a.get("status") == s)
-            if c:
-                active_detail.append(f"{c} {s}")
-
-        # "New since last session" tracking
-        last_open = self.app.get_last_tui_open()
-        new_count = (
-            db.count_matches_since(last_open) if last_open else stats["total_matches"]
-        )
-
         with Horizontal(id="summary-cards"):
-            yield SummaryCard(
-                "New Matches",
-                str(new_count),
-                "since last session",
-                css_class="green" if new_count else "blue",
-            )
-            yield SummaryCard(
-                "Active Apps",
-                str(active_count),
-                " · ".join(active_detail) if active_detail else "none",
-                css_class="blue",
-            )
-            yield SummaryCard(
-                "Overdue Follow-ups",
-                str(len(overdue)),
-                f"oldest: {overdue[0]['follow_up_after']}" if overdue else "all clear",
-                css_class="red" if overdue else "green",
-            )
-            yield SummaryCard(
-                "Total Matches",
-                str(stats["total_matches"]),
-                f"avg score: {stats['avg_score']:.0%}",
-                css_class="blue",
-            )
+            yield SummaryCard("New Matches", "—", "loading...", css_class="blue")
+            yield SummaryCard("Active Apps", "—", "loading...", css_class="blue")
+            yield SummaryCard("Overdue Follow-ups", "—", "loading...", css_class="blue")
+            yield SummaryCard("Total Matches", "—", "loading...", css_class="blue")
 
-        # Two-panel body
         with Horizontal(id="dashboard-body"):
-            # Left panel: Recent matches
             with Vertical(id="left-panel"):
                 yield Static(
                     " Top Matches · press \\[m] for full list ",
@@ -108,7 +65,6 @@ class DashboardScreen(Screen):
                 table.add_columns("Score", "Company", "Title", "Status")
                 yield table
 
-            # Right panel: Overdue follow-ups + pipeline status
             with Vertical(id="right-panel"):
                 yield Static(" ⚠ Overdue Follow-ups ", classes="section-header")
                 fu_table = DataTable(id="overdue-followups", cursor_type="row")
@@ -123,9 +79,45 @@ class DashboardScreen(Screen):
     def on_mount(self) -> None:
         db = self.app.db
 
+        # Populate summary cards (moved from compose to avoid blocking first frame)
+        stats = db.get_match_stats()
+        overdue_list = db.get_overdue_follow_ups()
+        apps = db.get_all_applications()
+        active_count = sum(
+            1 for a in apps if a.get("status") in ("applied", "interviewing", "offer")
+        )
+        active_detail = []
+        for s in ("applied", "interviewing", "offer"):
+            c = sum(1 for a in apps if a.get("status") == s)
+            if c:
+                active_detail.append(f"{c} {s}")
+        last_open = self.app.get_last_tui_open()
+        new_count = (
+            db.count_matches_since(last_open) if last_open else stats["total_matches"]
+        )
+
+        cards = list(self.query(SummaryCard))
+        if len(cards) >= 4:
+            cards[0].query_one(".card-value").update(str(new_count))
+            cards[0].query_one(".card-detail").update("since last session")
+            cards[1].query_one(".card-value").update(str(active_count))
+            cards[1].query_one(".card-detail").update(
+                " · ".join(active_detail) if active_detail else "none"
+            )
+            cards[2].query_one(".card-value").update(str(len(overdue_list)))
+            cards[2].query_one(".card-detail").update(
+                f"oldest: {overdue_list[0]['follow_up_after']}"
+                if overdue_list
+                else "all clear"
+            )
+            cards[3].query_one(".card-value").update(str(stats["total_matches"]))
+            cards[3].query_one(".card-detail").update(
+                f"avg score: {stats['avg_score']:.0%}"
+            )
+
         # Populate recent matches
         rows = db.get_top_matches(limit=15)
-        total = db.get_match_stats()["total_matches"]
+        total = stats["total_matches"]
         header_text = (
             f" Top Matches ({len(rows)} of {total}) · press \\[m] for full list "
         )

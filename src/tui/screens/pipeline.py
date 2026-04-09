@@ -139,23 +139,42 @@ class PipelineScreen(Screen):
             from src.pipeline import get_resume_summary
             from src.steps.tailor import get_active_resume_yaml
 
-            self.app.call_from_thread(self._set_spinner_label, "Scraping...")
-            scrapers = build_scrapers(config)
-            scrape_result = run_scrape(db, scrapers)
-            self.app.call_from_thread(
-                self._set_spinner_label,
-                f"Deduplicating... (scraped {scrape_result['jobs_scraped']} jobs, {scrape_result['new_jobs']} new)",
-            )
+            run_id = db.start_run()
+            error_msg = None
+            jobs_scraped = new_jobs = matches_found = 0
+            try:
+                self.app.call_from_thread(self._set_spinner_label, "Scraping...")
+                scrapers = build_scrapers(config)
+                scrape_result = run_scrape(db, scrapers)
+                jobs_scraped = scrape_result["jobs_scraped"]
+                new_jobs = scrape_result["new_jobs"]
+                self.app.call_from_thread(
+                    self._set_spinner_label,
+                    f"Deduplicating... (scraped {jobs_scraped} jobs, {new_jobs} new)",
+                )
 
-            run_dedup(db)
-            self.app.call_from_thread(self._set_spinner_label, "Filtering...")
+                run_dedup(db)
+                self.app.call_from_thread(self._set_spinner_label, "Filtering...")
 
-            _, resume_data = get_active_resume_yaml(config)
-            resume_summary = get_resume_summary(resume_data)
-            new_ids = scrape_result["new_job_ids"]
-            matches = run_filter(db, new_ids, resume_summary, config)
+                _, resume_data = get_active_resume_yaml(config)
+                resume_summary = get_resume_summary(resume_data)
+                new_ids = scrape_result["new_job_ids"]
+                matches = run_filter(db, new_ids, resume_summary, config)
+                matches_found = len(matches)
+            except Exception as e:
+                error_msg = str(e)
+                raise
+            finally:
+                db.complete_run(
+                    run_id,
+                    jobs_scraped=jobs_scraped,
+                    new_jobs=new_jobs,
+                    matches_found=matches_found,
+                    email_sent=False,
+                    error=error_msg,
+                )
             self.app.call_from_thread(self._stop_spinner)
-            msg = f"Done: {scrape_result['new_jobs']} new jobs, {len(matches)} matches"
+            msg = f"Done: {new_jobs} new jobs, {matches_found} matches"
             self.app.call_from_thread(self._update_progress, f"✓ {msg}")
             self.app.call_from_thread(self._load_history)
             self.app.call_from_thread(self.notify, msg)

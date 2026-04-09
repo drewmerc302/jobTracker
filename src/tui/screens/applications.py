@@ -21,6 +21,8 @@ class ApplicationsScreen(Screen):
     """Application tracking grouped by status."""
 
     BINDINGS = [
+        Binding("j", "cursor_down", "Down", show=False),
+        Binding("k", "cursor_up", "Up", show=False),
         Binding("space", "open_detail", "Open", show=False),
         Binding("s", "set_status", "Change status", show=True),
         Binding("f", "set_followup", "Set follow-up", show=True),
@@ -116,6 +118,16 @@ class ApplicationsScreen(Screen):
             return None
         row_key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key
         return str(row_key.value)
+
+    def action_cursor_down(self) -> None:
+        table = self._get_active_table()
+        if table:
+            table.action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        table = self._get_active_table()
+        if table:
+            table.action_cursor_up()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         job_id = str(event.row_key.value)

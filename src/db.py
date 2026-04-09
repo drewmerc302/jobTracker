@@ -380,8 +380,9 @@ class Database:
             FROM matches m
             JOIN jobs j ON m.job_id = j.id
             LEFT JOIN applications a ON m.job_id = a.job_id
-            WHERE j.closed_at IS NULL
-               OR COALESCE(a.status, 'new') IN ('applied', 'interviewing', 'offer', 'closed')
+            WHERE m.dismissed_at IS NULL
+              AND (j.closed_at IS NULL
+                   OR COALESCE(a.status, 'new') IN ('applied', 'interviewing', 'offer', 'closed'))
             ORDER BY
                 CASE COALESCE(a.status, 'new')
                     WHEN 'interviewing' THEN 1
@@ -490,7 +491,8 @@ class Database:
     def count_matches_since(self, since_iso: str) -> int:
         """Count matches added after a given ISO timestamp."""
         row = self._conn.execute(
-            "SELECT COUNT(*) as cnt FROM matches WHERE matched_at > ?", (since_iso,)
+            "SELECT COUNT(*) as cnt FROM matches WHERE matched_at > ? AND dismissed_at IS NULL",
+            (since_iso,),
         ).fetchone()
         return row["cnt"] or 0
 

@@ -96,10 +96,12 @@ class JobDetailScreen(Screen):
     def _run_analysis(self) -> None:
         self.run_worker(self._do_analysis, thread=True, name="analysis")
 
-    def _do_analysis(self) -> dict:
+    def _do_analysis(self) -> dict | None:
         from src.steps.tailor import ensure_analysis
 
         job = self.app.db.get_job(self.job_id)
+        if not job:
+            return None
         return ensure_analysis(dict(job), self.app.db, self.app.config, force=False)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
@@ -186,6 +188,7 @@ class JobDetailScreen(Screen):
     def action_next_edit(self) -> None:
         checkboxes = list(self.query(EditCheckbox))
         if not checkboxes:
+            self.query_one("#job-content", VerticalScroll).action_scroll_down()
             return
         focused = self.focused
         if isinstance(focused, EditCheckbox):
@@ -199,6 +202,7 @@ class JobDetailScreen(Screen):
     def action_prev_edit(self) -> None:
         checkboxes = list(self.query(EditCheckbox))
         if not checkboxes:
+            self.query_one("#job-content", VerticalScroll).action_scroll_up()
             return
         focused = self.focused
         if isinstance(focused, EditCheckbox):
@@ -232,6 +236,9 @@ class JobDetailScreen(Screen):
         db = self.app.db
         config = self.app.config
         job = db.get_job(self.job_id)
+        if not job:
+            self.app.call_from_thread(self.notify, "Job no longer in database")
+            return
         analysis = ensure_analysis(dict(job), db, config, force=True)
         resume_yaml_path, resume_data = get_active_resume_yaml(config)
         run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M")
