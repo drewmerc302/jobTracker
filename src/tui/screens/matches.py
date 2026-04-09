@@ -11,6 +11,7 @@ class MatchesScreen(Screen):
 
     BINDINGS = [
         Binding("enter", "open_detail", "Open", show=True),
+        Binding("space", "open_detail", "Open", show=False),
         Binding("s", "set_status", "Set status", show=True),
         Binding("t", "tailor", "Tailor", show=True),
         Binding("o", "open_url", "Open URL", show=True),
