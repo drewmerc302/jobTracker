@@ -6,6 +6,7 @@ from src.tui.screens.applications import ApplicationsScreen
 from src.tui.screens.dashboard import DashboardScreen
 from src.tui.screens.job_detail import JobDetailScreen
 from src.tui.screens.matches import MatchesScreen
+from src.tui.screens.pipeline import PipelineScreen
 
 
 class JobTrackerApp(App):
@@ -18,6 +19,7 @@ class JobTrackerApp(App):
         "applications": ApplicationsScreen,
         "dashboard": DashboardScreen,
         "matches": MatchesScreen,
+        "pipeline": PipelineScreen,
     }
 
     BINDINGS = [

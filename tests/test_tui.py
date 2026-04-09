@@ -79,6 +79,25 @@ async def test_applications_screen_grouped(seeded_db):
 
 
 @pytest.mark.asyncio
+async def test_pipeline_screen_shows_history(seeded_db):
+    """Test that pipeline screen shows run history."""
+    from src.tui.app import JobTrackerApp
+    from textual.widgets import DataTable
+
+    r1 = seeded_db.start_run()
+    seeded_db.complete_run(
+        r1, jobs_scraped=100, new_jobs=5, matches_found=2, email_sent=True
+    )
+
+    app = JobTrackerApp()
+    app._db_override = seeded_db
+    async with app.run_test() as pilot:
+        await pilot.press("p")
+        table = app.screen.query_one("#run-history", DataTable)
+        assert table.row_count == 1
+
+
+@pytest.mark.asyncio
 async def test_job_detail_shows_analysis(seeded_db):
     """Test that job detail screen displays match data."""
     from src.tui.app import JobTrackerApp
