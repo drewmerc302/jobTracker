@@ -10,12 +10,12 @@ At-a-glance summary: new matches, active applications, overdue follow-ups, and p
 ![Dashboard](docs/screenshots/dashboard.svg)
 
 ### Matches
-Sortable, filterable list of all matched jobs. Arrow keys to navigate, Enter to drill in, `x` to dismiss.
+Sortable, filterable list of all matched jobs. `j`/`k` or arrow keys to navigate, Enter/Space to drill in, `x` to dismiss.
 
 ![Matches](docs/screenshots/matches.svg)
 
 ### Job Detail
-Full analysis with resume edit checkboxes, keyword gaps, and one-key actions for tailoring, status changes, and interview prep.
+Full analysis with resume edit checkboxes, keyword gaps, company gripes, and one-key actions for tailoring, status changes, and interview prep. Color-coded sections with `j`/`k` navigation between edits.
 
 ![Job Detail](docs/screenshots/job-detail.svg)
 
@@ -25,7 +25,7 @@ Applications grouped by status with follow-up tracking and overdue alerts.
 ![Applications](docs/screenshots/applications.svg)
 
 ### Pipeline
-Trigger scrape/filter runs and view history. All operations run in the background.
+Trigger scrape/filter runs and view history. All operations run in the background with an animated spinner.
 
 ![Pipeline](docs/screenshots/pipeline.svg)
 
@@ -70,10 +70,10 @@ uv run jobtracker    # launches the terminal UI
 **Navigation:** `d` Dashboard, `m` Matches, `a` Applications, `p` Pipeline, `q` Quit, `?` Help. Esc goes back. All keybindings shown in the footer.
 
 **Key actions:**
-- **Matches screen:** Arrow keys to navigate, Enter to open detail, `s` set status, `t` tailor, `o` open URL, `x` dismiss, `S` cycle sort, `/` filter
-- **Job Detail:** Space to toggle resume edit checkboxes, `e` adopt selected edits + generate PDF, `t` tailor without edits, `v` view existing PDFs, `s` set status, `i` interview prep, `g` company gripes
-- **Applications:** `s` change status, `f` set follow-up date, `F` mark followed up, `n` salary notes
-- **Pipeline:** `r` full pipeline, `1` scrape, `2` filter, `3` prune stale, `R` renotify
+- **Matches screen:** `j`/`k` or arrow keys to navigate, Enter/Space to open detail, `s` set status, `t` tailor, `o` open URL, `x` dismiss, `S` cycle sort, `/` filter
+- **Job Detail:** `j`/`k` to navigate between edit checkboxes, Space to toggle, `e` adopt selected edits + generate PDF, `t` tailor without edits, `v` view existing PDFs, `s` set status, `i` interview prep, `g` company gripes (cached 30 days)
+- **Applications:** Enter/Space to open detail, `s` change status, `f` set follow-up date, `F` mark followed up, `n` salary notes
+- **Pipeline:** `r` refresh pipeline, `1` scrape, `2` filter, `3` prune stale, `R` renotify (sends top 10 matches)
 
 ### CLI (for automation)
 
