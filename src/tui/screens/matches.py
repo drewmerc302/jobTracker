@@ -10,7 +10,6 @@ class MatchesScreen(Screen):
     """Sortable, filterable list of matched jobs."""
 
     BINDINGS = [
-        Binding("enter", "open_detail", "Open", show=False),
         Binding("space", "open_detail", "Open", show=False),
         Binding("s", "set_status", "Set status", show=True),
         Binding("t", "tailor", "Tailor", show=True),
@@ -43,18 +42,7 @@ class MatchesScreen(Screen):
         self._update_filter_bar()
 
     def _load_data(self) -> None:
-        db = self.app.db
-        rows = db._conn.execute("""
-            SELECT m.job_id, j.company, j.title, j.location, m.relevance_score,
-                   CASE WHEN m.resume_path IS NOT NULL THEN '✓' ELSE '—' END as has_pdf,
-                   COALESCE(a.status, 'new') as status,
-                   j.first_seen_at
-            FROM matches m JOIN jobs j ON m.job_id = j.id
-            LEFT JOIN applications a ON m.job_id = a.job_id
-            WHERE j.closed_at IS NULL AND m.dismissed_at IS NULL
-            ORDER BY m.relevance_score DESC
-        """).fetchall()
-        self._all_rows = [dict(r) for r in rows]
+        self._all_rows = self.app.db.get_active_matches()
         self._refresh_table()
 
     def _refresh_table(self) -> None:

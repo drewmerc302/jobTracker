@@ -88,13 +88,22 @@ class JobTrackerApp(App):
                     app.get("applied_date") if app else None
                 )
                 self.db.set_follow_up_date(job_id, follow_up)
-            if new_status == "interviewing":
+            self.notify(f"Status → {new_status}")
+            # Run slow operations (LLM, MCP) in a background worker
+            self._run_status_side_effects(job_id, new_status)
+
+    def _run_status_side_effects(self, job_id: str, status: str) -> None:
+        def do_side_effects():
+            if status == "interviewing":
                 try:
                     from src.steps.interview_prep import generate_interview_prep
 
                     generate_interview_prep(self.db, job_id)
-                except Exception:
-                    pass
+                    self.call_from_thread(
+                        self.notify, "Interview prep written to Obsidian"
+                    )
+                except Exception as e:
+                    self.call_from_thread(self.notify, f"Interview prep failed: {e}")
             try:
                 from src.steps.obsidian import write_application_note, write_dashboard
 
@@ -102,7 +111,8 @@ class JobTrackerApp(App):
                 write_dashboard(self.db, self.config)
             except Exception:
                 pass
-            self.notify(f"Status → {new_status}")
+
+        self.run_worker(do_side_effects, thread=True)
 
     def action_tailor_job(self, job_id: str) -> None:
         """Quick tailor from matches list — push to job detail."""

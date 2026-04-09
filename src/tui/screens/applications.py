@@ -21,7 +21,6 @@ class ApplicationsScreen(Screen):
     """Application tracking grouped by status."""
 
     BINDINGS = [
-        Binding("enter", "open_detail", "Open", show=False),
         Binding("space", "open_detail", "Open", show=False),
         Binding("s", "set_status", "Change status", show=True),
         Binding("f", "set_followup", "Set follow-up", show=True),
@@ -109,8 +108,7 @@ class ApplicationsScreen(Screen):
         for table in self.query(DataTable):
             if table.has_focus:
                 return table
-        tables = list(self.query(DataTable))
-        return tables[0] if tables else None
+        return None
 
     def _get_selected_job_id(self) -> str | None:
         table = self._get_active_table()

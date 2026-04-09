@@ -479,3 +479,51 @@ class Database:
             "SELECT COUNT(*) as cnt FROM matches WHERE matched_at > ?", (since_iso,)
         ).fetchone()
         return row["cnt"] or 0
+
+    def get_unfiltered_open_job_ids(self) -> list[str]:
+        """Return IDs of open jobs that have not been matched yet."""
+        rows = self._conn.execute(
+            "SELECT id FROM jobs WHERE id NOT IN (SELECT job_id FROM matches) AND closed_at IS NULL"
+        ).fetchall()
+        return [r["id"] for r in rows]
+
+    def get_open_matches(self) -> list[dict]:
+        """Return all non-dismissed matches for open jobs with app status."""
+        rows = self._conn.execute("""
+            SELECT m.job_id, j.company, j.title, j.url,
+                   COALESCE(a.status, 'new') as app_status
+            FROM matches m JOIN jobs j ON m.job_id = j.id
+            LEFT JOIN applications a ON m.job_id = a.job_id
+            WHERE j.closed_at IS NULL
+            ORDER BY j.company
+        """).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_top_matches(self, limit: int = 15) -> list[dict]:
+        """Return top matches for dashboard display."""
+        rows = self._conn.execute(
+            """
+            SELECT m.job_id, j.company, j.title, m.relevance_score,
+                   COALESCE(a.status, 'new') as status
+            FROM matches m JOIN jobs j ON m.job_id = j.id
+            LEFT JOIN applications a ON m.job_id = a.job_id
+            WHERE j.closed_at IS NULL AND m.dismissed_at IS NULL
+            ORDER BY m.relevance_score DESC LIMIT ?
+        """,
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_active_matches(self) -> list[dict]:
+        """Return all non-dismissed matches for open jobs (matches screen)."""
+        rows = self._conn.execute("""
+            SELECT m.job_id, j.company, j.title, j.location, m.relevance_score,
+                   CASE WHEN m.resume_path IS NOT NULL THEN '✓' ELSE '—' END as has_pdf,
+                   COALESCE(a.status, 'new') as status,
+                   j.first_seen_at
+            FROM matches m JOIN jobs j ON m.job_id = j.id
+            LEFT JOIN applications a ON m.job_id = a.job_id
+            WHERE j.closed_at IS NULL AND m.dismissed_at IS NULL
+            ORDER BY m.relevance_score DESC
+        """).fetchall()
+        return [dict(r) for r in rows]

@@ -43,9 +43,6 @@ class DashboardScreen(Screen):
 
     BINDINGS = [
         Binding("space", "open_detail", "Open", show=False),
-        ("m", "app.switch_screen('matches')", "Matches"),
-        ("a", "app.switch_screen('applications')", "Applications"),
-        ("p", "app.switch_screen('pipeline')", "Pipeline"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -112,7 +109,7 @@ class DashboardScreen(Screen):
             # Right panel: Overdue follow-ups + pipeline status
             with Vertical(id="right-panel"):
                 yield Static(" ⚠ Overdue Follow-ups ", classes="section-header")
-                fu_table = DataTable(id="overdue-followups")
+                fu_table = DataTable(id="overdue-followups", cursor_type="row")
                 fu_table.add_columns("Company", "Title", "Overdue")
                 yield fu_table
 
@@ -125,14 +122,7 @@ class DashboardScreen(Screen):
         db = self.app.db
 
         # Populate recent matches
-        rows = db._conn.execute("""
-            SELECT m.job_id, j.company, j.title, m.relevance_score,
-                   COALESCE(a.status, 'new') as status
-            FROM matches m JOIN jobs j ON m.job_id = j.id
-            LEFT JOIN applications a ON m.job_id = a.job_id
-            WHERE j.closed_at IS NULL AND m.dismissed_at IS NULL
-            ORDER BY m.relevance_score DESC LIMIT 15
-        """).fetchall()
+        rows = db.get_top_matches(limit=15)
         total = db.get_match_stats()["total_matches"]
         header_text = (
             f" Top Matches ({len(rows)} of {total}) · press [m] for full list "

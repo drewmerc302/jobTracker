@@ -28,7 +28,7 @@ class PipelineScreen(Screen):
         )
         yield Static("", id="pipeline-progress")
         yield Static("  Run History", classes="section-header")
-        yield DataTable(id="run-history")
+        yield DataTable(id="run-history", cursor_type="row")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -161,10 +161,7 @@ class PipelineScreen(Screen):
             from src.steps.tailor import get_active_resume_yaml
             from src.pipeline import get_resume_summary
 
-            rows = db._conn.execute(
-                "SELECT id FROM jobs WHERE id NOT IN (SELECT job_id FROM matches) AND closed_at IS NULL"
-            ).fetchall()
-            new_ids = [r["id"] for r in rows]
+            new_ids = db.get_unfiltered_open_job_ids()
             _, resume_data = get_active_resume_yaml(config)
             resume_summary = get_resume_summary(resume_data)
             matches = run_filter(db, new_ids, resume_summary, config)
@@ -183,14 +180,7 @@ class PipelineScreen(Screen):
 
             scrapers = build_scrapers(config)
             scraper_map = {s.company_name: s for s in scrapers}
-            rows = db._conn.execute("""
-                SELECT m.job_id, j.company, j.title, j.url,
-                       COALESCE(a.status, 'new') as app_status
-                FROM matches m JOIN jobs j ON m.job_id = j.id
-                LEFT JOIN applications a ON m.job_id = a.job_id
-                WHERE j.closed_at IS NULL
-                ORDER BY j.company
-            """).fetchall()
+            rows = db.get_open_matches()
             pruned = 0
             current_company = None
             for row in rows:

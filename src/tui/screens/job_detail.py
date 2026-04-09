@@ -41,10 +41,8 @@ class JobDetailScreen(Screen):
     """Full job analysis with interactive edit selection."""
 
     BINDINGS = [
-        Binding("j", "next_edit", "Next edit", show=False),
-        Binding("k", "prev_edit", "Prev edit", show=False),
-        Binding("down", "next_edit", "Next edit", show=False),
-        Binding("up", "prev_edit", "Prev edit", show=False),
+        Binding("j", "next_edit", "Next ↓", show=True),
+        Binding("k", "prev_edit", "Prev ↑", show=True),
         Binding("t", "tailor", "Tailor PDF", show=True),
         Binding("e", "adopt_selected", "Adopt selected", show=True),
         Binding("E", "adopt_all", "Adopt all", show=True, key_display="⇧E"),
@@ -96,7 +94,7 @@ class JobDetailScreen(Screen):
         self._render_analysis(suggestions, match)
 
     def _run_analysis(self) -> None:
-        self.run_worker(self._do_analysis, thread=True)
+        self.run_worker(self._do_analysis, thread=True, name="analysis")
 
     def _do_analysis(self) -> dict:
         from src.steps.tailor import ensure_analysis
@@ -105,12 +103,25 @@ class JobDetailScreen(Screen):
         return ensure_analysis(dict(job), self.app.db, self.app.config, force=False)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        if event.state.name == "SUCCESS":
+        if event.state.name == "ERROR":
+            error = event.worker.error
+            name = event.worker.name or "operation"
+            self.notify(f"{name} failed: {error}", severity="error")
+            return
+        if event.state.name != "SUCCESS":
+            return
+        if event.worker.name == "analysis":
             match = self.app.db.get_match(self.job_id)
             suggestions = json.loads(match.get("suggestions") or "{}")
             content = self.query_one("#job-content", VerticalScroll)
             content.remove_children()
             self._render_analysis(suggestions, match)
+        elif event.worker.name == "gripes":
+            gripes = event.worker.result
+            if gripes:
+                self._mount_gripes(gripes)
+            else:
+                self.notify("Could not fetch gripes")
 
     def _render_analysis(self, suggestions: dict, match: dict) -> None:
         content = self.query_one("#job-content", VerticalScroll)
@@ -134,7 +145,7 @@ class JobDetailScreen(Screen):
         if edits:
             content.mount(
                 Static(
-                    "  SUGGESTED RESUME EDITS  [#8b949e](↑↓/jk=navigate, Space=toggle, e=adopt selected, E=adopt all)[/]",
+                    "  SUGGESTED RESUME EDITS  [#8b949e](j/k=navigate, Space=toggle, e=adopt, E=all)[/]",
                     classes="section-header",
                 )
             )
@@ -152,8 +163,6 @@ class JobDetailScreen(Screen):
                     Static(f"    [#58a6ff]Why:[/] [#8b949e]{edit['reason']}[/]")
                 )
                 content.mount(Static(""))
-            # Focus first checkbox so space/enter can toggle
-            self.set_timer(0.1, self._focus_first_checkbox)
 
         if suggestions.get("keyword_gaps"):
             gaps = ", ".join(suggestions["keyword_gaps"])
@@ -168,12 +177,6 @@ class JobDetailScreen(Screen):
                 content.mount(
                     Static(f"  [#3fb950]Cover letter:[/] {match['cover_letter_path']}")
                 )
-
-    def _focus_first_checkbox(self) -> None:
-        checkboxes = list(self.query(EditCheckbox))
-        if checkboxes:
-            checkboxes[0].focus()
-            checkboxes[0].scroll_visible()
 
     def action_next_edit(self) -> None:
         checkboxes = list(self.query(EditCheckbox))
@@ -298,27 +301,28 @@ class JobDetailScreen(Screen):
 
     def action_gripes(self) -> None:
         self.notify("Fetching company gripes...")
-        self.run_worker(self._do_gripes, thread=True)
+        self.run_worker(self._do_gripes, thread=True, name="gripes")
 
-    def _do_gripes(self) -> None:
+    def _do_gripes(self) -> dict | None:
         from src.steps.gripes import get_gripes
 
         job = self.app.db.get_job(self.job_id)
-        gripes = get_gripes(self.app.db, job["company"], self.app.config)
-        if gripes:
-            content = self.query_one("#job-content", VerticalScroll)
+        if not job:
+            return None
+        return get_gripes(self.app.db, job["company"], self.app.config)
 
-            def mount_gripes():
-                content.mount(Static("  COMPANY GRIPES", classes="section-header"))
-                for category, items in gripes.items():
-                    content.mount(Static(f"  {category}:"))
-                    if isinstance(items, list):
-                        for item in items:
-                            content.mount(Static(f"    • {item}"))
-
-            self.app.call_from_thread(mount_gripes)
-        else:
-            self.app.call_from_thread(self.notify, "Could not fetch gripes")
+    def _mount_gripes(self, gripes: dict) -> None:
+        """Mount gripes content — must be called on the main thread."""
+        content = self.query_one("#job-content", VerticalScroll)
+        content.mount(Static("  COMPANY GRIPES", classes="section-header"))
+        if gripes.get("tldr"):
+            for bullet in gripes["tldr"]:
+                content.mount(Static(f"  [#8b949e]•[/] [#c9d1d9]{bullet}[/]"))
+        for theme in gripes.get("themes", []):
+            content.mount(Static(f"  [#58a6ff]{theme['name']}[/]"))
+            content.mount(Static(f"  [#f0883e]{theme['summary']}[/]"))
+            content.mount(Static(f"  [#8b949e]{theme['detail']}[/]"))
+            content.mount(Static(""))
 
     def action_open_url(self) -> None:
         job = self.app.db.get_job(self.job_id)
