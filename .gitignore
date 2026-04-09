@@ -12,3 +12,4 @@ __pycache__/
 .claude/superpowers/
 .claude/settings.local.json
 docs/superpowers/**/*.tasks.json
+.superpowers/

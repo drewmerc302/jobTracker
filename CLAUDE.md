@@ -3,8 +3,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Run full pipeline (scrape → dedup → filter → tailor → notify)
+# Launch TUI (default — no flags)
 uv run jobtracker
+
+# Run full pipeline via CLI (scrape → dedup → filter → tailor → notify)
+uv run jobtracker --dry-run
 
 # Run single step
 uv run jobtracker --step scrape|dedup|filter|tailor|notify
@@ -47,7 +50,11 @@ Automated job tracker for engineering manager roles. Scrapes job boards → dedu
 
 **Data flow:** `scrape.py` → `dedup.py` → `filter.py` → `tailor.py` → `notify.py` + `obsidian.py`
 
-**Pipeline orchestration:** `src/pipeline.py` — CLI arg parsing (15+ flags) and step sequencing. Entry point: `main()` registered as `jobtracker` in pyproject.toml.
+**Pipeline orchestration:** `src/pipeline.py` — CLI arg parsing and step sequencing. Entry point: `main()` registered as `jobtracker` in pyproject.toml. Running with no flags launches the Textual TUI; any CLI flag triggers the old pipeline path for automation/launchd.
+
+### TUI (`src/tui/`)
+
+Textual-based terminal UI with 5 screens: Dashboard (summary cards, recent matches, follow-ups), Matches (sortable/filterable DataTable), Job Detail (analysis, edit checkboxes, PDF auto-open), Applications (grouped by status), Pipeline (run triggers, history). Global navigation via `d/m/a/p/q` keys. All long-running ops (scrape, LLM analysis, PDF generation) run in Textual Workers.
 
 ### Steps (`src/steps/`)
 
@@ -123,7 +130,12 @@ src/
 ├── __init__.py
 ├── config.py          # Config dataclass, env loading, keyword patterns
 ├── db.py              # SQLite wrapper, schema, migrations
-├── pipeline.py        # CLI entry point, step orchestration
+├── pipeline.py        # CLI entry point, step orchestration, TUI routing
+├── tui/
+│   ├── app.py         # JobTrackerApp main class, global keybindings
+│   ├── styles.tcss    # Textual CSS theme (GitHub dark)
+│   ├── screens/       # Dashboard, Matches, JobDetail, Applications, Pipeline
+│   └── widgets/       # StatusPopup modal
 ├── scrapers/
 │   ├── base.py        # RawJob dataclass, BaseScraper ABC
 │   ├── greenhouse.py  # Greenhouse REST API scraper
