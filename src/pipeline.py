@@ -891,9 +891,22 @@ def run_pipeline(args):
         raise
 
 
+def has_cli_flags(args) -> bool:
+    """Return True if any CLI flag is set (non-default value)."""
+    for value in vars(args).values():
+        if value is not None and value is not False:
+            return True
+    return False
+
+
 def main():
     args = parse_args()
-    run_pipeline(args)
+    if has_cli_flags(args):
+        run_pipeline(args)
+    else:
+        from src.tui.app import JobTrackerApp
+
+        JobTrackerApp().run()
 
 
 if __name__ == "__main__":
