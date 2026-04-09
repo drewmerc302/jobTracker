@@ -290,3 +290,51 @@ def test_mark_followed_up_no_reset_when_no_date(db):
     app = db.get_application("stripe:6")
     assert app["followed_up_at"] is not None
     assert app["follow_up_after"] is None  # was null, stays null
+
+
+def test_get_recent_runs(db):
+    r1 = db.start_run()
+    db.complete_run(r1, jobs_scraped=100, new_jobs=5, matches_found=2, email_sent=True)
+    r2 = db.start_run()
+    db.complete_run(
+        r2,
+        jobs_scraped=110,
+        new_jobs=8,
+        matches_found=1,
+        email_sent=False,
+        error="SMTP fail",
+    )
+
+    runs = db.get_recent_runs(limit=10)
+    assert len(runs) == 2
+    assert runs[0]["id"] == r2  # Most recent first
+    assert runs[0]["error"] == "SMTP fail"
+    assert runs[1]["jobs_scraped"] == 100
+
+
+def test_get_match_stats(db):
+    now = datetime.now(timezone.utc)
+    db.upsert_job(id="co:1", company="Co", title="EM", url="http://x", scraped_at=now)
+    db.upsert_job(id="co:2", company="Co", title="EM2", url="http://y", scraped_at=now)
+    db.commit()
+    db.insert_match(job_id="co:1", relevance_score=0.85, match_reason="good")
+    db.insert_match(job_id="co:2", relevance_score=0.72, match_reason="ok")
+
+    stats = db.get_match_stats()
+    assert stats["total_matches"] == 2
+    assert stats["avg_score"] == pytest.approx(0.785, abs=0.01)
+
+
+def test_count_matches_since(db):
+    now = datetime.now(timezone.utc)
+    db.upsert_job(id="co:1", company="Co", title="EM", url="http://x", scraped_at=now)
+    db.commit()
+    db.insert_match(job_id="co:1", relevance_score=0.85, match_reason="good")
+
+    # Count since a time before the match
+    count = db.count_matches_since("2000-01-01T00:00:00+00:00")
+    assert count == 1
+
+    # Count since far future
+    count = db.count_matches_since("2099-01-01T00:00:00+00:00")
+    assert count == 0

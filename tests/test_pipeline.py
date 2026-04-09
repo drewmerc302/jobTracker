@@ -2,6 +2,17 @@ from src.pipeline import parse_args, run_pipeline
 from src.db import Database
 
 
+def test_has_cli_flags_detects_flags():
+    from src.pipeline import has_cli_flags
+
+    args = parse_args([])
+    assert not has_cli_flags(args)
+    args = parse_args(["--list-matches"])
+    assert has_cli_flags(args)
+    args = parse_args(["--step", "scrape"])
+    assert has_cli_flags(args)
+
+
 def test_parse_args_defaults():
     args = parse_args([])
     assert args.dry_run is False

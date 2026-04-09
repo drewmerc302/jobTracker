@@ -586,7 +586,7 @@ def run_pipeline(args):
                    j.first_seen_at
             FROM matches m JOIN jobs j ON m.job_id = j.id
             LEFT JOIN applications a ON m.job_id = a.job_id
-            WHERE j.closed_at IS NULL
+            WHERE j.closed_at IS NULL AND m.dismissed_at IS NULL
             ORDER BY m.relevance_score DESC
         """).fetchall()
         if not rows:
@@ -891,9 +891,22 @@ def run_pipeline(args):
         raise
 
 
+def has_cli_flags(args) -> bool:
+    """Return True if any CLI flag is set (non-default value)."""
+    for value in vars(args).values():
+        if value is not None and value is not False:
+            return True
+    return False
+
+
 def main():
     args = parse_args()
-    run_pipeline(args)
+    if has_cli_flags(args):
+        run_pipeline(args)
+    else:
+        from src.tui.app import JobTrackerApp
+
+        JobTrackerApp().run()
 
 
 if __name__ == "__main__":
