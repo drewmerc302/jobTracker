@@ -10,7 +10,7 @@ class MatchesScreen(Screen):
     """Sortable, filterable list of matched jobs."""
 
     BINDINGS = [
-        Binding("enter", "open_detail", "Open", show=True),
+        Binding("enter", "open_detail", "Open", show=False),
         Binding("space", "open_detail", "Open", show=False),
         Binding("s", "set_status", "Set status", show=True),
         Binding("t", "tailor", "Tailor", show=True),
@@ -119,6 +119,11 @@ class MatchesScreen(Screen):
             return None
         row_key = table.coordinate_to_cell_key(table.cursor_coordinate).row_key
         return str(row_key.value)
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        job_id = str(event.row_key.value)
+        if job_id:
+            self.app.action_show_job(job_id)
 
     def action_open_detail(self) -> None:
         job_id = self._get_selected_job_id()
