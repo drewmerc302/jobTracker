@@ -62,6 +62,23 @@ async def test_matches_screen_shows_jobs(seeded_db):
 
 
 @pytest.mark.asyncio
+async def test_applications_screen_grouped(seeded_db):
+    """Test that applications screen groups by status."""
+    from src.tui.app import JobTrackerApp
+    from textual.widgets import DataTable
+
+    seeded_db.set_application_status("co:0", "interviewing")
+    seeded_db.set_application_status("co:2", "applied")
+
+    app = JobTrackerApp()
+    app._db_override = seeded_db
+    async with app.run_test() as pilot:
+        await pilot.press("a")
+        tables = app.screen.query(DataTable)
+        assert len(tables) > 0
+
+
+@pytest.mark.asyncio
 async def test_job_detail_shows_analysis(seeded_db):
     """Test that job detail screen displays match data."""
     from src.tui.app import JobTrackerApp

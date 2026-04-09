@@ -2,6 +2,7 @@ from pathlib import Path
 
 from textual.app import App
 
+from src.tui.screens.applications import ApplicationsScreen
 from src.tui.screens.dashboard import DashboardScreen
 from src.tui.screens.job_detail import JobDetailScreen
 from src.tui.screens.matches import MatchesScreen
@@ -14,6 +15,7 @@ class JobTrackerApp(App):
     TITLE = "JobTracker"
 
     SCREENS = {
+        "applications": ApplicationsScreen,
         "dashboard": DashboardScreen,
         "matches": MatchesScreen,
     }
