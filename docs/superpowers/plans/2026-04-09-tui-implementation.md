@@ -140,6 +140,19 @@ DataTable > .datatable--cursor {
 .score-high { color: #3fb950; }
 .score-mid { color: #58a6ff; }
 .score-low { color: #c9d1d9; }
+
+#dashboard-body {
+    layout: horizontal;
+    height: 1fr;
+}
+
+#left-panel {
+    width: 3fr;
+}
+
+#right-panel {
+    width: 2fr;
+}
 ```
 
 - [ ] **Step 5: Create minimal app.py skeleton**
@@ -265,6 +278,13 @@ def get_match_stats(self) -> dict:
         "total_matches": row["total_matches"] or 0,
         "avg_score": row["avg_score"] or 0.0,
     }
+
+def count_matches_since(self, since_iso: str) -> int:
+    """Count matches added after a given ISO timestamp."""
+    row = self._conn.execute(
+        "SELECT COUNT(*) as cnt FROM matches WHERE matched_at > ?", (since_iso,)
+    ).fetchone()
+    return row["cnt"] or 0
 ```
 
 - [ ] **Step 5: Run tests to verify they pass**
@@ -350,7 +370,7 @@ import json
 from datetime import datetime, timezone
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical, Container
+from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Static, DataTable, Footer
 
@@ -407,12 +427,16 @@ class DashboardScreen(Screen):
             if c:
                 active_detail.append(f"{c} {s}")
 
+        # "New since last session" tracking
+        last_open = self.app.get_last_tui_open()
+        new_count = db.count_matches_since(last_open) if last_open else stats["total_matches"]
+
         with Horizontal(id="summary-cards"):
             yield SummaryCard(
-                "Total Matches",
-                str(stats["total_matches"]),
-                f"avg score: {stats['avg_score']:.0%}",
-                css_class="blue",
+                "New Matches",
+                str(new_count),
+                "since last session",
+                css_class="green" if new_count else "blue",
             )
             yield SummaryCard(
                 "Active Apps",
@@ -426,23 +450,31 @@ class DashboardScreen(Screen):
                 f"oldest: {overdue[0]['follow_up_after']}" if overdue else "all clear",
                 css_class="red" if overdue else "green",
             )
+            yield SummaryCard(
+                "Total Matches",
+                str(stats["total_matches"]),
+                f"avg score: {stats['avg_score']:.0%}",
+                css_class="blue",
+            )
 
-        # Recent matches
-        yield Static(" Recent Matches · press [m] for full list ", classes="section-header")
-        table = DataTable(id="recent-matches")
-        table.add_columns("Score", "Company", "Title", "Status")
-        yield table
+        # Two-panel body
+        with Horizontal(id="dashboard-body"):
+            # Left panel: Recent matches
+            with Vertical(id="left-panel"):
+                yield Static(" Recent Matches · press [m] for full list ", classes="section-header")
+                table = DataTable(id="recent-matches")
+                table.add_columns("Score", "Company", "Title", "Status")
+                yield table
 
-        # Overdue follow-ups
-        if overdue:
-            yield Static(" ⚠ Overdue Follow-ups ", classes="section-header")
-            fu_table = DataTable(id="overdue-followups")
-            fu_table.add_columns("Company", "Title", "Status", "Overdue")
-            yield fu_table
+            # Right panel: Overdue follow-ups + pipeline status
+            with Vertical(id="right-panel"):
+                yield Static(" ⚠ Overdue Follow-ups ", classes="section-header")
+                fu_table = DataTable(id="overdue-followups")
+                fu_table.add_columns("Company", "Title", "Overdue")
+                yield fu_table
 
-        # Pipeline status
-        yield Static(" Pipeline Status ", classes="section-header")
-        yield Static("", id="pipeline-status")
+                yield Static(" Pipeline Status ", classes="section-header")
+                yield Static("", id="pipeline-status")
 
         yield Footer()
 
@@ -506,6 +538,8 @@ class DashboardScreen(Screen):
 - [ ] **Step 4: Update app.py to register Dashboard and set as default**
 
 ```python
+from pathlib import Path
+
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer
 
@@ -531,9 +565,23 @@ class JobTrackerApp(App):
         ("question_mark", "help", "Help"),
     ]
 
+    _LAST_OPEN_FILE = Path.home() / ".jobtracker_last_tui_open"
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._db_override = None
+
+    def get_last_tui_open(self) -> str | None:
+        """Read the last TUI open timestamp from dotfile."""
+        try:
+            return self._LAST_OPEN_FILE.read_text().strip() or None
+        except FileNotFoundError:
+            return None
+
+    def _save_last_tui_open(self) -> None:
+        """Write current timestamp to dotfile."""
+        from datetime import datetime, timezone
+        self._LAST_OPEN_FILE.write_text(datetime.now(timezone.utc).isoformat())
 
     def on_mount(self) -> None:
         from src.config import Config
@@ -545,6 +593,7 @@ class JobTrackerApp(App):
         else:
             self.db = Database(self.config.db_path)
         self.push_screen("dashboard")
+        self._save_last_tui_open()
 
     def action_switch_screen(self, screen_name: str) -> None:
         if screen_name in self.SCREENS:
@@ -1156,6 +1205,7 @@ Create `src/tui/widgets/__init__.py` (empty) and `src/tui/widgets/status_popup.p
 
 ```python
 from textual.app import ComposeResult
+from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Static, OptionList
 from textual.widgets.option_list import Option
@@ -1186,7 +1236,7 @@ class StatusPopup(ModalScreen):
         self.job_id = job_id
 
     def compose(self) -> ComposeResult:
-        with Static(id="status-dialog"):
+        with Vertical(id="status-dialog"):
             yield Static("  Set application status:")
             yield OptionList(
                 *[Option(s, id=s) for s in STATUSES],
@@ -1256,7 +1306,7 @@ Expected: FAIL
 
 ```python
 from textual.app import ComposeResult
-from textual.containers import VerticalScroll
+from textual.containers import Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Static, DataTable, Footer, Input
 from textual.binding import Binding
@@ -1424,7 +1474,7 @@ class DateInput(Screen):
     """
 
     def compose(self) -> ComposeResult:
-        with Static(id="date-dialog"):
+        with Vertical(id="date-dialog"):
             yield Static("  Follow-up date (YYYY-MM-DD):")
             yield Input(placeholder="2026-04-16")
 
@@ -1448,7 +1498,7 @@ class TextInput(Screen):
         self.prompt = prompt
 
     def compose(self) -> ComposeResult:
-        with Static(id="text-dialog"):
+        with Vertical(id="text-dialog"):
             yield Static(f"  {self.prompt}")
             yield Input()
 
