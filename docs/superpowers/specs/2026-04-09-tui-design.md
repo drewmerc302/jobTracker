@@ -24,7 +24,7 @@ CLI flags are preserved for automation (launchd, scripting). The TUI is a new la
 ```python
 def main():
     args = parse_args()
-    if has_cli_flags(args):
+    if has_cli_flags(args):  # True if any arg is non-default (not None/False)
         run_pipeline(args)
     else:
         from src.tui.app import JobTrackerApp
@@ -48,6 +48,8 @@ def main():
 - `--track` / `--status` → Applications & Job Detail screens
 - `--interview-prep` / `--gripes` → Job Detail actions
 - `--score` / `--markdown` → TUI filters (markdown output not needed)
+- `--fresh` → TUI always runs on-demand analysis; Job Detail offers re-analysis via loading state
+- `--research` → Interview prep action (`i` key) can prompt for research option
 
 ## Architecture
 
@@ -199,7 +201,8 @@ Track active applications grouped by status.
 2. Applied (green) — expanded
 3. Offer (orange) — expanded
 4. New (grey) — expanded
-5. Rejected / Withdrawn (grey) — collapsed by default, Enter to expand
+5. Closed (grey) — collapsed by default, Enter to expand (set by prune-stale when listing disappears)
+6. Rejected / Withdrawn (grey) — collapsed by default, Enter to expand
 
 **Columns per group:** Score | Company | Title | Applied Date | Follow-up / Notes
 
@@ -238,9 +241,9 @@ Trigger pipeline runs and view history.
 **Non-blocking execution:** Pipeline steps run in a Textual Worker (background thread). The UI stays responsive — you can navigate to other screens while a run is in progress. A small progress indicator appears in the header bar when a run is active.
 
 **Run history table:** Pulled from the `runs` DB table.
-- Columns: When | Source (launchd/manual) | Jobs | New | Matches | Email | Duration | Status
+- Columns: When | Jobs | New | Matches | Email | Duration | Status
+- Duration computed from `started_at`/`completed_at` in the `runs` table
 - Failed runs highlighted in red/orange
-- Manual runs (triggered from TUI) distinguished from launchd runs
 
 ## Theme
 
