@@ -23,83 +23,71 @@ def seed_database() -> Database:
 
     companies = [
         (
-            "Stripe",
-            "Engineering Manager, Payments Platform",
-            "Remote / San Francisco",
-            "$220k–$280k",
+            "Acme Corp",
+            "Engineering Manager, Platform Services",
+            "Remote / New York",
+            "$123,456",
             0.92,
         ),
         (
-            "Stripe",
-            "AI/ML Engineering Manager, Payment Intelligence",
-            "Remote / San Francisco",
-            "$230k–$290k",
+            "Acme Corp",
+            "AI/ML Engineering Manager, Data Platform",
+            "Remote / New York",
+            "$123,456",
             0.92,
         ),
         (
-            "Stripe",
-            "Engineering Manager, Agent Experiences",
-            "Remote / San Francisco",
-            "$220k–$280k",
+            "Acme Corp",
+            "Engineering Manager, Developer Experience",
+            "Remote / New York",
+            "$123,456",
             0.92,
         ),
         (
-            "Stripe",
-            "Engineering Manager, Agentic Commerce",
-            "Remote / San Francisco",
-            "$225k–$285k",
+            "Acme Corp",
+            "Engineering Manager, Commerce Platform",
+            "Remote / New York",
+            "$123,456",
+            0.92,
+        ),
+        ("Initech", "Engineering Manager, AI Governance", "Remote", "$123,456", 0.92),
+        (
+            "Globex",
+            "Senior Engineering Manager, ML Infrastructure",
+            "Remote / Bay Area",
+            "$123,456",
             0.92,
         ),
         (
-            "GitLab",
-            "Engineering Manager, SSCS: AI Governance",
-            "Remote",
-            "$185k–$230k",
-            0.92,
+            "Hooli",
+            "Engineering Manager, Observability",
+            "NYC / Remote",
+            "$123,456",
+            0.88,
         ),
         (
-            "Netflix",
-            "Senior Engineering Manager, Model Inference",
-            "Remote / Los Gatos",
-            "$250k–$350k",
-            0.92,
-        ),
-        ("DataDog", "Engineering Manager, APM", "NYC / Remote", "$210k–$260k", 0.88),
-        (
-            "Dropbox",
+            "Pied Piper",
             "Engineering Manager, Core Infrastructure",
             "Remote / Seattle",
-            "$200k–$250k",
+            "$123,456",
             0.85,
         ),
         (
-            "Capital One",
+            "Umbrella Co",
             "Sr Manager, Software Engineering",
-            "McLean, VA",
-            "$195k–$240k",
+            "Arlington, VA",
+            "$123,456",
             0.82,
         ),
-        (
-            "Apple",
-            "Engineering Program Manager, Machine Learning",
-            "Cupertino, CA",
-            None,
-            0.80,
-        ),
-        ("Google", "Engineering Manager, Cloud AI", "NYC", "$220k–$280k", 0.78),
-        ("GitLab", "Manager, Create:Source Code", "Remote", "$180k–$220k", 0.76),
-        ("Netflix", "EM, Studio Technology", "Remote / LA", "$240k–$320k", 0.74),
-        ("Stripe", "EM, Developer Productivity", "Remote", "$215k–$275k", 0.72),
-        ("DataDog", "Engineering Manager, Infrastructure", "NYC", "$205k–$255k", 0.70),
-        (
-            "Capital One",
-            "Manager, Cloud Engineering",
-            "Richmond, VA",
-            "$180k–$230k",
-            0.68,
-        ),
-        ("Dropbox", "Engineering Manager, Security", "Remote", "$195k–$245k", 0.66),
-        ("Apple", "Software Engineering Manager, Siri", "Cupertino, CA", None, 0.64),
+        ("Stark Ind", "Engineering Program Manager, ML", "Cupertino, CA", None, 0.80),
+        ("Wayne Ent", "Engineering Manager, Cloud AI", "NYC", "$123,456", 0.78),
+        ("Initech", "Manager, Source Code Management", "Remote", "$123,456", 0.76),
+        ("Globex", "EM, Studio Technology", "Remote / LA", "$123,456", 0.74),
+        ("Acme Corp", "EM, Developer Productivity", "Remote", "$123,456", 0.72),
+        ("Hooli", "Engineering Manager, Infrastructure", "NYC", "$123,456", 0.70),
+        ("Umbrella Co", "Manager, Cloud Engineering", "Richmond, VA", "$123,456", 0.68),
+        ("Pied Piper", "Engineering Manager, Security", "Remote", "$123,456", 0.66),
+        ("Stark Ind", "Software Engineering Manager, AI", "Cupertino, CA", None, 0.64),
     ]
 
     for i, (company, title, location, salary, score) in enumerate(companies):
@@ -153,12 +141,14 @@ def seed_database() -> Database:
         )
 
     # Application statuses
-    db.set_application_status("Stripe:1000", "applied")
-    db.set_follow_up_date("Stripe:1000", (now - timedelta(days=3)).strftime("%Y-%m-%d"))
-    db.set_application_status("Netflix:1005", "applied")
-    db.set_application_status("Capital One:1008", "interviewing")
+    db.set_application_status("Acme Corp:1000", "applied")
     db.set_follow_up_date(
-        "Capital One:1008", (now - timedelta(days=1)).strftime("%Y-%m-%d")
+        "Acme Corp:1000", (now - timedelta(days=3)).strftime("%Y-%m-%d")
+    )
+    db.set_application_status("Globex:1005", "applied")
+    db.set_application_status("Umbrella Co:1008", "interviewing")
+    db.set_follow_up_date(
+        "Umbrella Co:1008", (now - timedelta(days=1)).strftime("%Y-%m-%d")
     )
 
     # Run history
@@ -211,7 +201,7 @@ async def main():
     print("Generating screenshots...")
     await capture_screen(db, "dashboard", "dashboard.svg")
     await capture_screen(db, "matches", "matches.svg", press_keys=["m"])
-    await capture_screen(db, "job_detail", "job-detail.svg", show_job="Stripe:1000")
+    await capture_screen(db, "job_detail", "job-detail.svg", show_job="Acme Corp:1000")
     await capture_screen(db, "applications", "applications.svg", press_keys=["a"])
     await capture_screen(db, "pipeline", "pipeline.svg", press_keys=["p"])
     print("Done!")
