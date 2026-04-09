@@ -128,7 +128,7 @@ class DashboardScreen(Screen):
                    COALESCE(a.status, 'new') as status
             FROM matches m JOIN jobs j ON m.job_id = j.id
             LEFT JOIN applications a ON m.job_id = a.job_id
-            WHERE j.closed_at IS NULL
+            WHERE j.closed_at IS NULL AND m.dismissed_at IS NULL
             ORDER BY m.relevance_score DESC LIMIT 15
         """).fetchall()
         total = db.get_match_stats()["total_matches"]

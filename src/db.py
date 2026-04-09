@@ -86,6 +86,13 @@ class Database:
             self._conn.execute(
                 "ALTER TABLE applications ADD COLUMN followed_up_at TEXT"
             )
+        # Migrate matches table
+        match_cols = {
+            row[1]
+            for row in self._conn.execute("PRAGMA table_info(matches)").fetchall()
+        }
+        if "dismissed_at" not in match_cols:
+            self._conn.execute("ALTER TABLE matches ADD COLUMN dismissed_at TEXT")
         self._conn.commit()
 
     def upsert_job(
@@ -229,6 +236,21 @@ class Database:
     def update_match_suggestions(self, job_id: str, suggestions: str):
         self._conn.execute(
             "UPDATE matches SET suggestions = ? WHERE job_id = ?", (suggestions, job_id)
+        )
+        self._conn.commit()
+
+    def dismiss_match(self, job_id: str):
+        """Mark a match as dismissed so it's hidden from default views."""
+        now = datetime.now(timezone.utc).isoformat()
+        self._conn.execute(
+            "UPDATE matches SET dismissed_at = ? WHERE job_id = ?", (now, job_id)
+        )
+        self._conn.commit()
+
+    def undismiss_match(self, job_id: str):
+        """Restore a dismissed match."""
+        self._conn.execute(
+            "UPDATE matches SET dismissed_at = NULL WHERE job_id = ?", (job_id,)
         )
         self._conn.commit()
 
@@ -444,7 +466,7 @@ class Database:
                    AVG(m.relevance_score) as avg_score
             FROM matches m
             JOIN jobs j ON m.job_id = j.id
-            WHERE j.closed_at IS NULL
+            WHERE j.closed_at IS NULL AND m.dismissed_at IS NULL
         """).fetchone()
         return {
             "total_matches": row["total_matches"] or 0,

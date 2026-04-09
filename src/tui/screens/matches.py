@@ -16,6 +16,7 @@ class MatchesScreen(Screen):
         Binding("o", "open_url", "Open URL", show=True),
         Binding("slash", "filter", "Filter", show=True),
         Binding("S", "cycle_sort", "Sort", show=True, key_display="⇧S"),
+        Binding("x", "dismiss", "Dismiss", show=True),
         Binding("escape", "app.switch_screen('dashboard')", "Back"),
     ]
 
@@ -49,7 +50,7 @@ class MatchesScreen(Screen):
                    j.first_seen_at
             FROM matches m JOIN jobs j ON m.job_id = j.id
             LEFT JOIN applications a ON m.job_id = a.job_id
-            WHERE j.closed_at IS NULL
+            WHERE j.closed_at IS NULL AND m.dismissed_at IS NULL
             ORDER BY m.relevance_score DESC
         """).fetchall()
         self._all_rows = [dict(r) for r in rows]
@@ -140,6 +141,16 @@ class MatchesScreen(Screen):
             if job and job.get("url"):
                 subprocess.Popen(["open", job["url"]])
                 self.notify(f"Opened {job['url']}")
+
+    def action_dismiss(self) -> None:
+        job_id = self._get_selected_job_id()
+        if job_id:
+            job = self.app.db.get_job(job_id)
+            self.app.db.dismiss_match(job_id)
+            self._load_data()
+            self._update_filter_bar()
+            name = f"{job['company']} — {job['title']}" if job else job_id
+            self.notify(f"Dismissed: {name}")
 
 
 class FilterInput(Screen):
