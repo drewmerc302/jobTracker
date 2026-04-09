@@ -99,8 +99,9 @@ class DashboardScreen(Screen):
             # Left panel: Recent matches
             with Vertical(id="left-panel"):
                 yield Static(
-                    " Recent Matches · press [m] for full list ",
+                    " Top Matches · press [m] for full list ",
                     classes="section-header",
+                    id="recent-matches-header",
                 )
                 table = DataTable(id="recent-matches")
                 table.add_columns("Score", "Company", "Title", "Status")
@@ -128,8 +129,13 @@ class DashboardScreen(Screen):
             FROM matches m JOIN jobs j ON m.job_id = j.id
             LEFT JOIN applications a ON m.job_id = a.job_id
             WHERE j.closed_at IS NULL
-            ORDER BY m.relevance_score DESC LIMIT 5
+            ORDER BY m.relevance_score DESC LIMIT 15
         """).fetchall()
+        total = db.get_match_stats()["total_matches"]
+        header_text = (
+            f" Top Matches ({len(rows)} of {total}) · press [m] for full list "
+        )
+        self.query_one("#recent-matches-header").update(header_text)
         table = self.query_one("#recent-matches", DataTable)
         for r in rows:
             table.add_row(
