@@ -10,6 +10,8 @@ class MatchesScreen(Screen):
     """Sortable, filterable list of matched jobs."""
 
     BINDINGS = [
+        Binding("j", "cursor_down", "Down", show=False),
+        Binding("k", "cursor_up", "Up", show=False),
         Binding("space", "open_detail", "Open", show=False),
         Binding("s", "set_status", "Set status", show=True),
         Binding("t", "tailor", "Tailor", show=True),
@@ -112,6 +114,14 @@ class MatchesScreen(Screen):
         job_id = str(event.row_key.value)
         if job_id:
             self.app.action_show_job(job_id)
+
+    def action_cursor_down(self) -> None:
+        table = self.query_one("#matches-table", DataTable)
+        table.action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        table = self.query_one("#matches-table", DataTable)
+        table.action_cursor_up()
 
     def action_open_detail(self) -> None:
         job_id = self._get_selected_job_id()

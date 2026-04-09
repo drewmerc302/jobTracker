@@ -904,6 +904,10 @@ def main():
     if has_cli_flags(args):
         run_pipeline(args)
     else:
+        # Suppress log output to stderr — it corrupts the TUI display
+        logging.getLogger().handlers.clear()
+        logging.getLogger().addHandler(logging.NullHandler())
+
         from src.tui.app import JobTrackerApp
 
         JobTrackerApp().run()

@@ -269,6 +269,20 @@ class Database:
         """).fetchall()
         return [dict(r) for r in rows]
 
+    def get_top_matches_for_digest(self, limit: int = 10) -> list[dict]:
+        """Return top matches for digest email, regardless of notification status."""
+        rows = self._conn.execute(
+            """
+            SELECT m.*, j.company, j.title, j.url, j.location, j.salary, j.description
+            FROM matches m JOIN jobs j ON m.job_id = j.id
+            WHERE j.closed_at IS NULL AND m.dismissed_at IS NULL
+            ORDER BY m.relevance_score DESC
+            LIMIT ?
+        """,
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
     def mark_notified(self, job_ids: list[str]):
         now = datetime.now(timezone.utc).isoformat()
         for job_id in job_ids:

@@ -42,6 +42,8 @@ class DashboardScreen(Screen):
     """Landing screen with summary cards and recent data."""
 
     BINDINGS = [
+        Binding("j", "cursor_down", "Down", show=False),
+        Binding("k", "cursor_up", "Up", show=False),
         Binding("space", "open_detail", "Open", show=False),
     ]
 
@@ -98,7 +100,7 @@ class DashboardScreen(Screen):
             # Left panel: Recent matches
             with Vertical(id="left-panel"):
                 yield Static(
-                    " Top Matches · press [m] for full list ",
+                    " Top Matches · press \\[m] for full list ",
                     classes="section-header",
                     id="recent-matches-header",
                 )
@@ -125,7 +127,7 @@ class DashboardScreen(Screen):
         rows = db.get_top_matches(limit=15)
         total = db.get_match_stats()["total_matches"]
         header_text = (
-            f" Top Matches ({len(rows)} of {total}) · press [m] for full list "
+            f" Top Matches ({len(rows)} of {total}) · press \\[m] for full list "
         )
         self.query_one("#recent-matches-header").update(header_text)
         table = self.query_one("#recent-matches", DataTable)
@@ -164,6 +166,14 @@ class DashboardScreen(Screen):
         else:
             status_text = "No runs recorded"
         self.query_one("#pipeline-status", Static).update(f"  {status_text}")
+
+    def action_cursor_down(self) -> None:
+        table = self.query_one("#recent-matches", DataTable)
+        table.action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        table = self.query_one("#recent-matches", DataTable)
+        table.action_cursor_up()
 
     def action_open_detail(self) -> None:
         table = self.query_one("#recent-matches", DataTable)

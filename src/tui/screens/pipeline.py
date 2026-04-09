@@ -13,7 +13,7 @@ class PipelineScreen(Screen):
     """Trigger pipeline runs and view history."""
 
     BINDINGS = [
-        Binding("r", "run_full", "Full pipeline", show=True),
+        Binding("r", "run_full", "Refresh pipeline", show=True),
         Binding("1", "run_scrape", "Scrape", show=True),
         Binding("2", "run_filter", "Filter", show=True),
         Binding("3", "run_prune", "Prune", show=True),
@@ -24,7 +24,7 @@ class PipelineScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Static("  Pipeline Control", classes="section-header")
         yield Static(
-            "  [r] Full Pipeline  ·  [1] Scrape  ·  [2] Filter  ·  [3] Prune  ·  [R] Renotify"
+            "  \\[r] Full Pipeline  ·  \\[1] Scrape  ·  \\[2] Filter  ·  \\[3] Prune  ·  \\[R] Renotify"
         )
         yield Static("", id="pipeline-progress")
         yield Static("  Run History", classes="section-header")
@@ -76,23 +76,50 @@ class PipelineScreen(Screen):
                 status,
             )
 
+    _SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
     def _update_progress(self, text: str) -> None:
         self.query_one("#pipeline-progress", Static).update(f"  {text}")
 
+    def _start_spinner(self, label: str) -> None:
+        self._spinner_label = label
+        self._spinner_idx = 0
+        self._spinner_timer = self.set_interval(0.1, self._tick_spinner)
+
+    def _tick_spinner(self) -> None:
+        frame = self._SPINNER[self._spinner_idx % len(self._SPINNER)]
+        self._update_progress(f"{frame} {self._spinner_label}")
+        self._spinner_idx += 1
+
+    def _set_spinner_label(self, label: str) -> None:
+        self._spinner_label = label
+
+    def _stop_spinner(self) -> None:
+        if hasattr(self, "_spinner_timer") and self._spinner_timer:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
+
     def _run_pipeline_step(self, step_name: str, fn) -> None:
-        self._update_progress(f"⟳ Running {step_name}...")
+        self._start_spinner(f"Running {step_name}...")
+        self.notify(f"Running {step_name}...")
 
         def do_run():
             try:
                 result = fn()
+                self.app.call_from_thread(self._stop_spinner)
                 self.app.call_from_thread(
                     self._update_progress, f"✓ {step_name} complete: {result}"
                 )
+                self.app.call_from_thread(
+                    self.notify, f"{step_name} complete: {result}"
+                )
                 self.app.call_from_thread(self._load_history)
             except Exception as e:
+                self.app.call_from_thread(self._stop_spinner)
                 self.app.call_from_thread(
                     self._update_progress, f"✗ {step_name} failed: {e}"
                 )
+                self.app.call_from_thread(self.notify, f"{step_name} failed: {e}")
 
         self.run_worker(do_run, thread=True)
 
@@ -102,6 +129,9 @@ class PipelineScreen(Screen):
         config = self.app.config
         db = self.app.db
 
+        self._start_spinner("Running pipeline...")
+        self.notify("Pipeline started...")
+
         def do_full():
             from src.steps.scrape import run_scrape
             from src.steps.dedup import run_dedup
@@ -109,29 +139,27 @@ class PipelineScreen(Screen):
             from src.pipeline import get_resume_summary
             from src.steps.tailor import get_active_resume_yaml
 
-            self.app.call_from_thread(self._update_progress, "⟳ Scraping...")
+            self.app.call_from_thread(self._set_spinner_label, "Scraping...")
             scrapers = build_scrapers(config)
             scrape_result = run_scrape(db, scrapers)
             self.app.call_from_thread(
-                self._update_progress,
-                f"✓ Scrape: {scrape_result['jobs_scraped']} jobs, {scrape_result['new_jobs']} new\n  ⟳ Deduplicating...",
+                self._set_spinner_label,
+                f"Deduplicating... (scraped {scrape_result['jobs_scraped']} jobs, {scrape_result['new_jobs']} new)",
             )
 
             run_dedup(db)
-            self.app.call_from_thread(
-                self._update_progress, "✓ Scrape + Dedup done\n  ⟳ Filtering..."
-            )
+            self.app.call_from_thread(self._set_spinner_label, "Filtering...")
 
             _, resume_data = get_active_resume_yaml(config)
             resume_summary = get_resume_summary(resume_data)
             new_ids = scrape_result["new_job_ids"]
             matches = run_filter(db, new_ids, resume_summary, config)
-            self.app.call_from_thread(
-                self._update_progress,
-                f"✓ Pipeline complete: {scrape_result['new_jobs']} new jobs, {len(matches)} matches",
-            )
+            self.app.call_from_thread(self._stop_spinner)
+            msg = f"Done: {scrape_result['new_jobs']} new jobs, {len(matches)} matches"
+            self.app.call_from_thread(self._update_progress, f"✓ {msg}")
             self.app.call_from_thread(self._load_history)
-            return f"{scrape_result['new_jobs']} new, {len(matches)} matches"
+            self.app.call_from_thread(self.notify, msg)
+            return msg
 
         self.run_worker(do_full, thread=True)
 
@@ -205,15 +233,29 @@ class PipelineScreen(Screen):
         config = self.app.config
 
         def do_renotify():
-            from src.steps.notify import run_notify
+            from datetime import datetime as dt
+            from datetime import timezone
+            from pathlib import Path
 
-            run_stats = {
-                "jobs_scraped": 0,
-                "new_jobs": 0,
-                "matches_found": 0,
-                "duration": "renotify",
-            }
-            success = run_notify(db, run_stats, config)
-            return "sent" if success else "failed"
+            from src.steps.notify import build_digest_html, send_email
+
+            matches = db.get_top_matches_for_digest(limit=10)
+            if not matches:
+                return "no matches to send"
+            follow_ups = db.get_overdue_follow_ups()
+            run_stats = {"matches_found": len(matches), "duration": "resend"}
+            html = build_digest_html(matches, run_stats, config, follow_ups=follow_ups)
+            attachments = []
+            for m in matches:
+                company = m.get("company", "unknown").replace(" ", "_")
+                title = m.get("title", "role").replace(" ", "_").replace(",", "")[:30]
+                if m.get("resume_path"):
+                    attachments.append(
+                        (f"{company}_{title}_resume.pdf", Path(m["resume_path"]))
+                    )
+            today = dt.now(timezone.utc).strftime("%Y-%m-%d")
+            subject = f"Job Tracker: Top {len(matches)} matches — {today}"
+            send_email(subject, html, attachments, config)
+            return f"sent top {len(matches)} matches"
 
         self._run_pipeline_step("Renotify", do_renotify)
