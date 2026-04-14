@@ -10,4 +10,4 @@ for logfile in data/logs/stdout.log data/logs/stderr.log; do
 done
 
 mkdir -p data/logs
-uv run jobtracker 2>&1
+uv run jobtracker --pipeline 2>&1

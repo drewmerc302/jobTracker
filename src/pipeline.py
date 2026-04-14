@@ -37,6 +37,11 @@ def _compute_follow_up_date(applied_date_str: str | None, days: int = 7) -> str:
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Job Tracker Pipeline")
     parser.add_argument(
+        "--pipeline",
+        action="store_true",
+        help="Run the full pipeline (scrape → dedup → filter → tailor → notify). Use for scheduled/launchd invocations.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Run scrape + filter only, skip notify",
