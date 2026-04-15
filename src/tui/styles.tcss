@@ -87,6 +87,13 @@ DataTable > .datatable--cursor {
     padding: 0 1;
 }
 
+#pdf-progress {
+    background: #161b22;
+    height: auto;
+    padding: 0 1;
+    dock: bottom;
+}
+
 #dashboard-body {
     layout: horizontal;
     height: 1fr;

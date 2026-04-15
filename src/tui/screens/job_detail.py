@@ -54,13 +54,17 @@ class JobDetailScreen(Screen):
         Binding("escape", "go_back", "Back"),
     ]
 
+    _SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
     def __init__(self, job_id: str):
         super().__init__()
         self.job_id = job_id
+        self._tailoring = False
 
     def compose(self) -> ComposeResult:
         yield Static("Loading...", id="job-header")
         yield VerticalScroll(id="job-content")
+        yield Static("", id="pdf-progress")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -108,11 +112,21 @@ class JobDetailScreen(Screen):
         if event.state.name == "ERROR":
             error = event.worker.error
             name = event.worker.name or "operation"
+            if name == "tailor":
+                self._stop_pdf_spinner()
             self.notify(f"{name} failed: {error}", severity="error")
             return
         if event.state.name != "SUCCESS":
             return
         if event.worker.name == "analysis":
+            match = self.app.db.get_match(self.job_id)
+            suggestions = json.loads(match.get("suggestions") or "{}")
+            content = self.query_one("#job-content", VerticalScroll)
+            content.remove_children()
+            self._render_analysis(suggestions, match)
+        elif event.worker.name == "tailor":
+            self._stop_pdf_spinner("PDFs generated and opened")
+            # Refresh to show PDF paths in the analysis section
             match = self.app.db.get_match(self.job_id)
             suggestions = json.loads(match.get("suggestions") or "{}")
             content = self.query_one("#job-content", VerticalScroll)
@@ -220,11 +234,35 @@ class JobDetailScreen(Screen):
                 indices.add(cb.edit_index)
         return indices
 
-    def action_tailor(self) -> None:
-        self.notify("Generating PDFs...")
-        self.run_worker(self._do_tailor, thread=True)
+    def _start_pdf_spinner(self, label: str) -> None:
+        self._tailoring = True
+        self._spinner_label = label
+        self._spinner_idx = 0
+        self._spinner_timer = self.set_interval(0.1, self._tick_pdf_spinner)
 
-    def _do_tailor(self, adopt: set[int] | None = None) -> None:
+    def _tick_pdf_spinner(self) -> None:
+        frame = self._SPINNER[self._spinner_idx % len(self._SPINNER)]
+        self.query_one("#pdf-progress", Static).update(
+            f"  [#f0883e]{frame}[/] [#c9d1d9]{self._spinner_label}[/]"
+        )
+        self._spinner_idx += 1
+
+    def _stop_pdf_spinner(self, message: str = "") -> None:
+        self._tailoring = False
+        if hasattr(self, "_spinner_timer") and self._spinner_timer:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
+        widget = self.query_one("#pdf-progress", Static)
+        if message:
+            widget.update(f"  [#3fb950]✓[/] [#c9d1d9]{message}[/]")
+        else:
+            widget.update("")
+
+    def action_tailor(self) -> None:
+        self._start_pdf_spinner("Generating PDFs — this takes about a minute...")
+        self.run_worker(self._do_tailor, thread=True, name="tailor")
+
+    def _do_tailor(self, adopt: set[int] | None = None) -> str:
         from datetime import datetime, timezone
 
         from src.steps.tailor import (
@@ -238,7 +276,7 @@ class JobDetailScreen(Screen):
         job = db.get_job(self.job_id)
         if not job:
             self.app.call_from_thread(self.notify, "Job no longer in database")
-            return
+            return "failed"
         analysis = ensure_analysis(dict(job), db, config, force=True)
         resume_yaml_path, resume_data = get_active_resume_yaml(config)
         run_date = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M")
@@ -265,25 +303,36 @@ class JobDetailScreen(Screen):
             path = result.get(key)
             if path and Path(path).exists():
                 subprocess.Popen(["open", str(path)])
-        self.app.call_from_thread(self.notify, "PDFs generated and opened")
+        return "done"
 
     def action_adopt_selected(self) -> None:
         indices = self._get_selected_edit_indices()
         if not indices:
             self.notify("No edits selected")
             return
-        self.notify(f"Adopting edits {sorted(indices)} and generating PDFs...")
-        self.run_worker(lambda: self._do_tailor(adopt=indices), thread=True)
+        self._start_pdf_spinner(
+            f"Adopting edits {sorted(indices)} and generating PDFs..."
+        )
+        self.run_worker(
+            lambda: self._do_tailor(adopt=indices), thread=True, name="tailor"
+        )
 
     def action_adopt_all(self) -> None:
         all_indices = {cb.edit_index for cb in self.query(EditCheckbox)}
         if not all_indices:
             self.notify("No edits available")
             return
-        self.notify(f"Adopting all {len(all_indices)} edits and generating PDFs...")
-        self.run_worker(lambda: self._do_tailor(adopt=all_indices), thread=True)
+        self._start_pdf_spinner(
+            f"Adopting all {len(all_indices)} edits and generating PDFs..."
+        )
+        self.run_worker(
+            lambda: self._do_tailor(adopt=all_indices), thread=True, name="tailor"
+        )
 
     def action_view_pdfs(self) -> None:
+        if self._tailoring:
+            self.notify("PDFs are still being generated — please wait")
+            return
         match = self.app.db.get_match(self.job_id)
         if not match:
             return
