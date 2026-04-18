@@ -347,6 +347,23 @@ class JobDetailScreen(Screen):
         else:
             self.notify("No PDFs generated yet — press \\[t] to generate")
 
+    def _load_data(self) -> None:
+        """Refresh header after a status change."""
+        db = self.app.db
+        job = db.get_job(self.job_id)
+        match = db.get_match(self.job_id)
+        if not job or not match:
+            return
+        app_row = db.get_application(self.job_id)
+        status = app_row["status"] if app_row else "new"
+        score = f"{match['relevance_score']:.0%}"
+        salary = f" · {job['salary']}" if job.get("salary") else ""
+        location = job.get("location") or "N/A"
+        self.query_one("#job-header").update(
+            f"{job['company']} — {job['title']}\n"
+            f"{score} match · {status} · {location}{salary}"
+        )
+
     def action_set_status(self) -> None:
         self.app.action_set_job_status(self.job_id)
 

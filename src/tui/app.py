@@ -89,9 +89,10 @@ class JobTrackerApp(App):
                 )
                 self.db.set_follow_up_date(job_id, follow_up)
             self.notify(f"Status → {new_status}")
-            # Refresh the calling screen if it has _load_data
-            if hasattr(self.screen, "_load_data"):
-                self.screen._load_data()
+            # Refresh all screens in the stack (e.g. JobDetail header + Matches/Dashboard below)
+            for screen in self.screen_stack:
+                if hasattr(screen, "_load_data"):
+                    screen._load_data()
             # Run slow operations (LLM, MCP) in a background worker
             self._run_status_side_effects(job_id, new_status)
 
