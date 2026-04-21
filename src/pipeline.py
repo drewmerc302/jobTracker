@@ -149,7 +149,9 @@ def parse_args(argv=None):
 
 def build_scrapers(config: Config) -> list:
     from src.scrapers.apple import AppleScraper
+    from src.scrapers.fidelity import FidelityScraper
     from src.scrapers.google import GoogleScraper
+    from src.scrapers.shopify import ShopifyScraper
 
     scrapers = []
     for slug, info in config.greenhouse_boards.items():
@@ -170,7 +172,9 @@ def build_scrapers(config: Config) -> list:
             )
         )
     scrapers.append(AppleScraper())
+    scrapers.append(FidelityScraper())
     scrapers.append(GoogleScraper())
+    scrapers.append(ShopifyScraper())
     return scrapers
 
 
