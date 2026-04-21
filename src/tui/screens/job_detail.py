@@ -133,7 +133,18 @@ class JobDetailScreen(Screen):
             content.remove_children()
             self._render_analysis(suggestions, match)
         elif event.worker.name == "interview_prep":
-            self._stop_pdf_spinner("Interview prep written to Obsidian")
+            pdf_path = event.worker.result
+            msg = (
+                f"Interview prep PDF: {pdf_path}"
+                if pdf_path
+                else "Interview prep PDF generated"
+            )
+            self._stop_pdf_spinner(msg)
+            match = self.app.db.get_match(self.job_id)
+            suggestions = json.loads(match.get("suggestions") or "{}")
+            content = self.query_one("#job-content", VerticalScroll)
+            content.remove_children()
+            self._render_analysis(suggestions, match)
         elif event.worker.name == "gripes":
             gripes = event.worker.result
             if gripes:
@@ -192,13 +203,23 @@ class JobDetailScreen(Screen):
             for gap in suggestions["keyword_gaps"]:
                 content.mount(Static(f"  [#f0883e]• {gap}[/]"))
 
-        if match.get("resume_path") or match.get("cover_letter_path"):
+        if (
+            match.get("resume_path")
+            or match.get("cover_letter_path")
+            or match.get("interview_prep_path")
+        ):
             content.mount(Static("  GENERATED PDFs", classes="section-header"))
             if match.get("resume_path"):
                 content.mount(Static(f"  [#3fb950]Resume:[/] {match['resume_path']}"))
             if match.get("cover_letter_path"):
                 content.mount(
                     Static(f"  [#3fb950]Cover letter:[/] {match['cover_letter_path']}")
+                )
+            if match.get("interview_prep_path"):
+                content.mount(
+                    Static(
+                        f"  [#3fb950]Interview prep:[/] {match['interview_prep_path']}"
+                    )
                 )
 
     def action_next_edit(self) -> None:
@@ -373,14 +394,20 @@ class JobDetailScreen(Screen):
         self.app.action_set_job_status(self.job_id)
 
     def action_interview_prep(self) -> None:
-        self.notify("Generating interview prep — writing to Obsidian...")
-        self._start_pdf_spinner("Generating interview prep — writing to Obsidian...")
+        self.notify("Generating interview prep PDF...")
+        self._start_pdf_spinner("Generating interview prep PDF...")
         self.run_worker(self._do_interview_prep, thread=True, name="interview_prep")
 
-    def _do_interview_prep(self) -> None:
+    def _do_interview_prep(self) -> "str | None":
         from src.steps.interview_prep import generate_interview_prep
 
-        generate_interview_prep(self.app.db, self.job_id)
+        pdf_path = generate_interview_prep(self.app.db, self.job_id)
+        if pdf_path:
+            self.app.db.update_match_paths(
+                self.job_id, interview_prep_path=str(pdf_path)
+            )
+            subprocess.Popen(["open", str(pdf_path)])
+        return str(pdf_path) if pdf_path else None
 
     def action_gripes(self) -> None:
         from datetime import datetime, timedelta, timezone

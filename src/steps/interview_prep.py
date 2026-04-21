@@ -1,7 +1,8 @@
-import json
 import logging
-import re
 import subprocess
+import urllib.parse
+import urllib.request
+from pathlib import Path
 
 import anthropic
 import yaml
@@ -75,100 +76,106 @@ PREP_TOOL = {
 }
 
 
-def _read_obsidian_note(path: str) -> str:
-    """Read a note from Obsidian vault via CLI. Returns empty string if not found."""
-    try:
-        result = subprocess.run(
-            [
-                "claude",
-                "mcp",
-                "call",
-                "obsidian",
-                "read_note",
-                "--",
-                json.dumps({"path": path}),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            if isinstance(data, list) and data:
-                return data[0].get("text", "")
-            return result.stdout
-    except Exception as e:
-        logger.debug(f"Could not read Obsidian note {path}: {e}")
-    return ""
+def _escape_typst(text: str) -> str:
+    """Escape characters that have special meaning in Typst."""
+    for ch in ("\\", "@", "#", "<", ">", "=", "_", "*", "`", "~", "$"):
+        text = text.replace(ch, "\\" + ch)
+    return text
 
 
-def _write_obsidian_note(path: str, content: str):
-    try:
-        result = subprocess.run(
-            [
-                "claude",
-                "mcp",
-                "call",
-                "obsidian",
-                "write_note",
-                "--",
-                json.dumps({"path": path, "content": content}),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if result.returncode != 0:
-            logger.warning(
-                f"Failed to write Obsidian note {path}: {result.stderr.strip()}"
-            )
-    except Exception as e:
-        logger.warning(f"Failed to write Obsidian note {path}: {e}")
+def _generate_typst(prep: dict, job: dict) -> str:
+    e = _escape_typst
+    company = e(job.get("company", ""))
+    title = e(job.get("title", ""))
 
-
-def _patch_obsidian_section(note: str, section_header: str, new_content: str) -> str:
-    """Replace section_header block in note with new_content, or append if missing."""
-    pattern = re.compile(
-        rf"({re.escape(section_header)})\n.*?(?=\n\n## |\n## |\Z)", re.DOTALL
-    )
-    replacement = f"{section_header}\n{new_content}"
-    if pattern.search(note):
-        return pattern.sub(replacement, note)
-    return note.rstrip() + f"\n\n{section_header}\n{new_content}\n"
-
-
-def _format_prep_content(prep: dict) -> str:
-    lines = []
+    lines = [
+        '#set page(margin: 2cm, paper: "us-letter")',
+        "#set text(size: 11pt)",
+        "#set heading(numbering: none)",
+        "#set list(indent: 1em)",
+        "",
+        f"= {company} — {title}",
+        "",
+        "#text(size: 9pt, fill: gray)[Interview Preparation]",
+        "#line(length: 100%)",
+        "#v(0.5em)",
+        "",
+    ]
 
     if prep.get("talking_points"):
-        lines.append("### Key Talking Points")
+        lines.append("== Key Talking Points")
+        lines.append("")
         for tp in prep["talking_points"]:
-            lines.append(f"- {tp}")
+            lines.append(f"- {e(tp)}")
         lines.append("")
 
     if prep.get("red_flags"):
-        lines.append("### Gaps to Prepare For")
+        lines.append("== Gaps to Prepare For")
+        lines.append("")
         for rf in prep["red_flags"]:
-            lines.append(f"- {rf}")
+            lines.append(f"- {e(rf)}")
         lines.append("")
 
     if prep.get("likely_questions"):
-        lines.append("### Likely Questions")
+        lines.append("== Likely Interview Questions")
+        lines.append("")
         for q in prep["likely_questions"]:
-            lines.append(f"- {q}")
+            lines.append(f"- {e(q)}")
         lines.append("")
 
     if prep.get("star_stories"):
-        lines.append("### STAR Stories")
+        lines.append("== STAR Stories")
+        lines.append("")
         for story in prep["star_stories"]:
-            lines.append(f"\n**Q: {story['question']}**")
-            lines.append(f"*From: {story['resume_bullet']}*")
-            lines.append(f"- **S:** {story['situation']}")
-            lines.append(f"- **T:** {story['task']}")
-            lines.append(f"- **A:** {story['action']}")
-            lines.append(f"- **R:** {story['result']}")
+            lines.append(f"*Q: {e(story['question'])}*")
+            lines.append("")
+            lines.append(f"_From: {e(story['resume_bullet'])}_")
+            lines.append("")
+            lines.append(f"- *S:* {e(story['situation'])}")
+            lines.append(f"- *T:* {e(story['task'])}")
+            lines.append(f"- *A:* {e(story['action'])}")
+            lines.append(f"- *R:* {e(story['result'])}")
+            lines.append("")
 
     return "\n".join(lines)
+
+
+def _generate_pdf(
+    prep: dict, job: dict, output_dir: Path, config: Config
+) -> Path | None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    company_clean = (job.get("company") or "company").replace(" ", "_")
+    job_id_safe = (job.get("id") or "job").replace(":", "_")
+    typ_path = output_dir / f"{company_clean}_{job_id_safe}_interview_prep.typ"
+    pdf_path = output_dir / f"{company_clean}_{job_id_safe}_interview_prep.pdf"
+
+    typ_path.write_text(_generate_typst(prep, job))
+
+    try:
+        result = subprocess.run(
+            [
+                "uv",
+                "run",
+                "--directory",
+                str(config.resume_formatter_dir),
+                "scripts/compile_typst.py",
+                str(typ_path),
+                "--output",
+                str(pdf_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode != 0:
+            logger.warning(
+                f"interview_prep: typst compile failed: {result.stderr.strip()}"
+            )
+            return None
+        return pdf_path
+    except Exception as e:
+        logger.warning(f"interview_prep: PDF generation failed: {e}")
+        return None
 
 
 @_llm_retry
@@ -211,13 +218,11 @@ Candidate's resume (YAML):
 
 
 def _web_research(company: str) -> str:
-    """Basic web research for company context. Returns summary string."""
-    import urllib.request
-    import urllib.parse
-
     try:
         url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(company)}"
         with urllib.request.urlopen(url, timeout=5) as r:
+            import json
+
             data = json.loads(r.read())
             return data.get("extract", "")[:500]
     except Exception:
@@ -226,12 +231,12 @@ def _web_research(company: str) -> str:
 
 def generate_interview_prep(
     db: Database, job_id: str, research: bool = False, config: "Config | None" = None
-):
-    """Generate and write interview prep content for a job to its Obsidian note."""
+) -> "Path | None":
+    """Generate interview prep PDF for a job. Returns the PDF path or None on failure."""
     job = db.get_job(job_id)
     if not job:
         logger.warning(f"interview_prep: job {job_id} not found")
-        return
+        return None
 
     try:
         if config is None:
@@ -250,21 +255,12 @@ def generate_interview_prep(
         prep = _call_llm(job, resume_data, config, extra_context)
     except Exception as e:
         logger.error(f"interview_prep: LLM call failed for {job_id}: {e}")
-        return
+        return None
 
-    from src.steps.obsidian import sanitize_filename, VAULT_PATH
+    pdf_path = _generate_pdf(prep, dict(job), config.output_dir, config)
+    if pdf_path:
+        logger.info(f"interview_prep: generated PDF at {pdf_path}")
+    else:
+        logger.warning(f"interview_prep: PDF generation failed for {job_id}")
 
-    note_name = sanitize_filename(f"{job['company']} — {job['title']}")
-    note_path = f"{VAULT_PATH}/{note_name}"
-
-    existing = _read_obsidian_note(note_path)
-    if not existing:
-        existing = (
-            f"# {job['company']} — {job['title']}\n\n## Interview Prep\n\n## Notes\n"
-        )
-
-    new_content = _format_prep_content(prep)
-    patched = _patch_obsidian_section(existing, "## Interview Prep", new_content)
-    _write_obsidian_note(note_path, patched)
-
-    logger.info(f"interview_prep: wrote prep note for {job_id}")
+    return pdf_path

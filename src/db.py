@@ -93,6 +93,10 @@ class Database:
         }
         if "dismissed_at" not in match_cols:
             self._conn.execute("ALTER TABLE matches ADD COLUMN dismissed_at TEXT")
+        if "interview_prep_path" not in match_cols:
+            self._conn.execute(
+                "ALTER TABLE matches ADD COLUMN interview_prep_path TEXT"
+            )
         self._conn.commit()
 
     def upsert_job(
@@ -216,7 +220,12 @@ class Database:
         self._conn.commit()
 
     def update_match_paths(
-        self, job_id: str, *, resume_path: str = None, cover_letter_path: str = None
+        self,
+        job_id: str,
+        *,
+        resume_path: str = None,
+        cover_letter_path: str = None,
+        interview_prep_path: str = None,
     ):
         updates = []
         params = []
@@ -226,6 +235,9 @@ class Database:
         if cover_letter_path:
             updates.append("cover_letter_path = ?")
             params.append(cover_letter_path)
+        if interview_prep_path:
+            updates.append("interview_prep_path = ?")
+            params.append(interview_prep_path)
         if updates:
             params.append(job_id)
             self._conn.execute(

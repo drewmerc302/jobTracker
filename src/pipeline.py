@@ -368,7 +368,9 @@ def run_pipeline(args):
         if new_status == "interviewing":
             try:
                 logger.info(f"Generating interview prep for {job_id}...")
-                generate_interview_prep(db, job_id)
+                prep_path = generate_interview_prep(db, job_id)
+                if prep_path:
+                    db.update_match_paths(job_id, interview_prep_path=str(prep_path))
             except Exception as e:
                 logger.warning(f"Interview prep generation failed (non-fatal): {e}")
         from src.steps.obsidian import write_application_note, write_dashboard
@@ -424,7 +426,9 @@ def run_pipeline(args):
         if new_status == "interviewing":
             try:
                 logger.info(f"Generating interview prep for {job_id}...")
-                generate_interview_prep(db, job_id)
+                prep_path = generate_interview_prep(db, job_id)
+                if prep_path:
+                    db.update_match_paths(job_id, interview_prep_path=str(prep_path))
             except Exception as e:
                 logger.warning(f"Interview prep generation failed (non-fatal): {e}")
 
@@ -517,8 +521,17 @@ def run_pipeline(args):
             return
         research = getattr(args, "research", False)
         logger.info(f"Generating interview prep for {job_id} (research={research})...")
-        generate_interview_prep(db, job_id, research=research)
-        print(f"Interview prep written to Obsidian: {job['company']} — {job['title']}")
+        prep_path = generate_interview_prep(db, job_id, research=research)
+        if prep_path:
+            db.update_match_paths(job_id, interview_prep_path=str(prep_path))
+            import subprocess as _sp
+
+            _sp.Popen(["open", str(prep_path)])
+            print(f"Interview prep PDF: {prep_path}")
+        else:
+            print(
+                f"Interview prep generation failed for {job['company']} — {job['title']}"
+            )
         return
 
     if args.prune_stale:
