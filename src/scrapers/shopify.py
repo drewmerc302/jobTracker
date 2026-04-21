@@ -124,7 +124,9 @@ class ShopifyScraper(BaseScraper):
 
     def fetch_jobs(self) -> list[RawJob]:
         try:
-            with httpx.Client(timeout=30, headers=_HEADERS) as client:
+            with httpx.Client(
+                timeout=30, headers=_HEADERS, follow_redirects=True
+            ) as client:
                 listing_data = self._fetch_listing(client)
                 if not listing_data:
                     logger.warning("Shopify: could not extract listing data")
