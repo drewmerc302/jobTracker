@@ -112,7 +112,7 @@ class JobDetailScreen(Screen):
         if event.state.name == "ERROR":
             error = event.worker.error
             name = event.worker.name or "operation"
-            if name == "tailor":
+            if name in ("tailor", "interview_prep"):
                 self._stop_pdf_spinner()
             self.notify(f"{name} failed: {error}", severity="error")
             return
@@ -132,6 +132,8 @@ class JobDetailScreen(Screen):
             content = self.query_one("#job-content", VerticalScroll)
             content.remove_children()
             self._render_analysis(suggestions, match)
+        elif event.worker.name == "interview_prep":
+            self._stop_pdf_spinner("Interview prep written to Obsidian")
         elif event.worker.name == "gripes":
             gripes = event.worker.result
             if gripes:
@@ -368,14 +370,13 @@ class JobDetailScreen(Screen):
         self.app.action_set_job_status(self.job_id)
 
     def action_interview_prep(self) -> None:
-        self.notify("Generating interview prep...")
-        self.run_worker(self._do_interview_prep, thread=True)
+        self._start_pdf_spinner("Generating interview prep — writing to Obsidian...")
+        self.run_worker(self._do_interview_prep, thread=True, name="interview_prep")
 
     def _do_interview_prep(self) -> None:
         from src.steps.interview_prep import generate_interview_prep
 
         generate_interview_prep(self.app.db, self.job_id)
-        self.app.call_from_thread(self.notify, "Interview prep written to Obsidian")
 
     def action_gripes(self) -> None:
         from datetime import datetime, timedelta, timezone
