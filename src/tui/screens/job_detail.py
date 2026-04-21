@@ -261,6 +261,7 @@ class JobDetailScreen(Screen):
             widget.update("")
 
     def action_tailor(self) -> None:
+        self.notify("Generating PDFs — this takes about a minute...")
         self._start_pdf_spinner("Generating PDFs — this takes about a minute...")
         self.run_worker(self._do_tailor, thread=True, name="tailor")
 
@@ -312,6 +313,7 @@ class JobDetailScreen(Screen):
         if not indices:
             self.notify("No edits selected")
             return
+        self.notify(f"Adopting edits {sorted(indices)} and generating PDFs...")
         self._start_pdf_spinner(
             f"Adopting edits {sorted(indices)} and generating PDFs..."
         )
@@ -324,6 +326,7 @@ class JobDetailScreen(Screen):
         if not all_indices:
             self.notify("No edits available")
             return
+        self.notify(f"Adopting all {len(all_indices)} edits and generating PDFs...")
         self._start_pdf_spinner(
             f"Adopting all {len(all_indices)} edits and generating PDFs..."
         )
@@ -370,6 +373,7 @@ class JobDetailScreen(Screen):
         self.app.action_set_job_status(self.job_id)
 
     def action_interview_prep(self) -> None:
+        self.notify("Generating interview prep — writing to Obsidian...")
         self._start_pdf_spinner("Generating interview prep — writing to Obsidian...")
         self.run_worker(self._do_interview_prep, thread=True, name="interview_prep")
 
