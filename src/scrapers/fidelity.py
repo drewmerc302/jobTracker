@@ -4,12 +4,13 @@ import re
 import time
 from datetime import datetime, timezone
 
-import httpx
+from curl_cffi import requests as cffi_requests
+from curl_cffi.requests.exceptions import RequestException
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 
 from .base import BaseScraper, RawJob
@@ -19,19 +20,14 @@ logger = logging.getLogger(__name__)
 _http_retry = retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
-    retry=retry_if_exception_type((httpx.HTTPError, httpx.TimeoutException)),
+    retry=retry_if_exception_type(RequestException),
     reraise=True,
 )
 
 BASE_URL = "https://jobs.fidelity.com"
 LISTING_PATH = "/en/jobs/"
 PAGE_SIZE = 20
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Referer": "https://jobs.fidelity.com/en/jobs/",
-}
+IMPERSONATE = "chrome124"
 
 
 def _strip_html(text: str) -> str:
@@ -47,18 +43,18 @@ def _is_remote(location: str | None, description: str | None) -> bool | None:
 
 
 class FidelityScraper(BaseScraper):
-    """Scrapes Fidelity jobs from the Umbraco-powered jobs.fidelity.com site."""
+    """Scrapes Fidelity jobs from jobs.fidelity.com using Chrome TLS impersonation."""
 
     company_name = "Fidelity"
 
     def fetch_jobs(self) -> list[RawJob]:
         try:
-            with httpx.Client(timeout=30, headers=HEADERS) as client:
-                job_urls = self._collect_job_urls(client)
+            with cffi_requests.Session(impersonate=IMPERSONATE) as session:
+                job_urls = self._collect_job_urls(session)
                 logger.info(f"Fidelity: found {len(job_urls)} job URLs to fetch")
                 results: list[RawJob] = []
                 for job_id, url in job_urls.items():
-                    job = self._fetch_detail(client, job_id, url)
+                    job = self._fetch_detail(session, job_id, url)
                     if job:
                         results.append(job)
                     time.sleep(0.5)
@@ -68,18 +64,16 @@ class FidelityScraper(BaseScraper):
             logger.error(f"Failed to fetch Fidelity jobs: {e}")
             return []
 
-    def _collect_job_urls(self, client: httpx.Client) -> dict[str, str]:
-        """Paginate listing pages and collect {job_id: url} dict."""
+    def _collect_job_urls(self, session: cffi_requests.Session) -> dict[str, str]:
         job_urls: dict[str, str] = {}
         page = 1
         total: int | None = None
 
         while True:
-            html = self._fetch_listing_page(client, page)
+            html = self._fetch_listing_page(session, page)
             if not html:
                 break
 
-            # Parse total count from first page
             if total is None:
                 m = re.search(r"([\d,]+)\s+open roles", html, re.IGNORECASE)
                 if m:
@@ -88,7 +82,6 @@ class FidelityScraper(BaseScraper):
                 else:
                     total = 0
 
-            # Extract job links: href="/en/jobs/{id}/{slug}/"
             found = re.findall(r'href="(/en/jobs/(\d+)/[^"]+/)"', html)
             if not found:
                 logger.debug(f"Fidelity: no job links found on page {page}")
@@ -109,7 +102,9 @@ class FidelityScraper(BaseScraper):
         return job_urls
 
     @_http_retry
-    def _fetch_listing_page(self, client: httpx.Client, page: int) -> str | None:
+    def _fetch_listing_page(
+        self, session: cffi_requests.Session, page: int
+    ) -> str | None:
         params = {
             "team": "Technology",
             "search": "engineering manager",
@@ -117,28 +112,30 @@ class FidelityScraper(BaseScraper):
             "origin": "filtered",
             "page": str(page),
         }
-        resp = client.get(BASE_URL + LISTING_PATH, params=params)
+        resp = session.get(BASE_URL + LISTING_PATH, params=params)
         resp.raise_for_status()
         return resp.text
 
     @_http_retry
-    def _fetch_detail_page(self, client: httpx.Client, url: str) -> str | None:
-        resp = client.get(url)
+    def _fetch_detail_page(
+        self, session: cffi_requests.Session, url: str
+    ) -> str | None:
+        resp = session.get(url)
         resp.raise_for_status()
         return resp.text
 
     def _fetch_detail(
-        self, client: httpx.Client, job_id: str, url: str
+        self, session: cffi_requests.Session, job_id: str, url: str
     ) -> RawJob | None:
         try:
-            html = self._fetch_detail_page(client, url)
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                logger.debug(f"Fidelity: 404 for job {job_id}")
-                return None
-            logger.warning(f"Fidelity: HTTP error fetching {url}: {e}")
+            html = self._fetch_detail_page(session, url)
+        except RequestException as e:
+            logger.warning(f"Fidelity: request error fetching {url}: {e}")
             return None
         except Exception as e:
+            if "404" in str(e):
+                logger.debug(f"Fidelity: 404 for job {job_id}")
+                return None
             logger.warning(f"Fidelity: error fetching {url}: {e}")
             return None
 
@@ -212,7 +209,7 @@ class FidelityScraper(BaseScraper):
 
     def is_job_live(self, url: str) -> bool | None:
         try:
-            resp = httpx.get(url, headers=HEADERS, timeout=10, follow_redirects=True)
+            resp = cffi_requests.get(url, impersonate=IMPERSONATE, timeout=10)
             if resp.status_code == 404:
                 return False
             if resp.status_code == 200:
