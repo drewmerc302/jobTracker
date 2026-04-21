@@ -2,6 +2,8 @@
 data/
 output/
 outputs/
+gripes.md
+matches.md
 __pycache__/
 *.pyc
 .venv/
