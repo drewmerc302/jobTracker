@@ -33,7 +33,7 @@ class EditCheckbox(Checkbox):
 
     def __init__(self, index: int, edit: dict):
         label = f"[{index}] {edit['original'][:60]} → {edit['suggested'][:60]}"
-        super().__init__(label, id=f"edit-{index}")
+        super().__init__(label)
         self.edit_index = index
 
 
