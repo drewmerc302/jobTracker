@@ -90,6 +90,12 @@ class Config:
             "technical manager",
             "engineering lead",
             "development manager",
+            "manager, software engineering",
+            "manager, engineering",
+            "leader, software engineering",
+            "leader, engineering",
+            "director, engineering",
+            "director, software engineering",
         ]
     )
     seniority_exclusions: list[str] = field(
