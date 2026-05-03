@@ -73,6 +73,11 @@ class Config:
                 "base_url": "https://netflix.wd1.myworkdayjobs.com",
                 "path": "/wday/cxs/netflix/netflix",
             },
+            "cisco": {
+                "display_name": "Cisco",
+                "base_url": "https://cisco.wd5.myworkdayjobs.com",
+                "path": "/wday/cxs/cisco/Cisco_Careers",
+            },
         }
     )
     keyword_patterns: list[str] = field(
