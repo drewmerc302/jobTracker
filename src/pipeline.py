@@ -171,6 +171,18 @@ def build_scrapers(config: Config) -> list:
                 keyword_patterns=config.keyword_patterns,
             )
         )
+    from src.scrapers.oracle import OracleScraper
+
+    for key, info in config.oracle_companies.items():
+        scrapers.append(
+            OracleScraper(
+                company_name=info["display_name"],
+                tenant=info["tenant"],
+                site_number=info.get("site_number", "CX_1001"),
+                keyword_patterns=config.keyword_patterns,
+                countries=info.get("countries", ["US"]),
+            )
+        )
     scrapers.append(AppleScraper())
     scrapers.append(FidelityScraper())
     scrapers.append(GoogleScraper())

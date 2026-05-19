@@ -256,3 +256,79 @@ def test_apple_is_job_live_returns_true_on_valid_content(mock_httpx):
     mock_resp.text = "<html>Engineering Manager - Apply</html>"
     mock_httpx.get.return_value = mock_resp
     assert scraper.is_job_live("https://jobs.apple.com/en-us/details/123") is True
+
+
+def test_oracle_parse_and_filter():
+    from src.scrapers.oracle import OracleScraper
+
+    with open(FIXTURES / "oracle_search_response.json") as f:
+        data = json.load(f)
+    scraper = OracleScraper(
+        company_name="JPMorganChase",
+        tenant="jpmc",
+        site_number="CX_1001",
+        keyword_patterns=["engineering manager", "manager of software engineering"],
+        countries=["US"],
+    )
+    reqs = data["items"][0]["requisitionList"]
+    now = datetime.now(timezone.utc)
+    kept = []
+    for r in reqs:
+        if r.get("PrimaryLocationCountry") not in scraper.countries:
+            continue
+        if not scraper._title_matches(r.get("Title", "")):
+            continue
+        kept.append(scraper._parse_req(r, now))
+
+    assert len(kept) == 1, "should keep only US mgr-titled req"
+    job = kept[0]
+    assert job.company == "JPMorganChase"
+    assert "Manager of Software Engineering" in job.title
+    assert job.external_id == "210749559"
+    assert job.url.startswith("https://jpmc.fa.oraclecloud.com/hcmUI/")
+    assert "210749559" in job.url
+    assert job.location == "New York, NY, United States"
+    assert job.db_id == "JPMorganChase:210749559"
+
+
+def test_oracle_title_matches():
+    from src.scrapers.oracle import OracleScraper
+
+    s = OracleScraper(
+        company_name="JPMorganChase",
+        tenant="jpmc",
+        keyword_patterns=["engineering manager", "manager of software engineering"],
+    )
+    assert s._title_matches("Manager of Software Engineering - Java")
+    assert s._title_matches("Senior Engineering Manager, Payments")
+    assert not s._title_matches("Marketing Manager, Loyalty")
+
+
+def test_oracle_remote_extraction():
+    from src.scrapers.oracle import OracleScraper
+
+    s = OracleScraper(company_name="X", tenant="x")
+    assert s._extract_remote({"WorkplaceTypeCode": "REMOTE"}) is True
+    assert s._extract_remote({"WorkplaceTypeCode": "ONSITE"}) is False
+    assert s._extract_remote({"WorkplaceTypeCode": "HYBRID"}) is False
+    assert (
+        s._extract_remote({"WorkplaceTypeCode": None, "PrimaryLocation": "Remote - US"})
+        is True
+    )
+    assert (
+        s._extract_remote({"WorkplaceTypeCode": None, "PrimaryLocation": "NY"}) is None
+    )
+
+
+@patch("src.scrapers.oracle.httpx.Client")
+def test_oracle_handles_failure(mock_client_class):
+    from src.scrapers.oracle import OracleScraper
+
+    mock_client = MagicMock()
+    mock_client.__enter__ = MagicMock(return_value=mock_client)
+    mock_client.__exit__ = MagicMock(return_value=False)
+    mock_client.get.side_effect = Exception("Connection refused")
+    mock_client_class.return_value = mock_client
+
+    s = OracleScraper(company_name="JPMorganChase", tenant="jpmc")
+    assert s.fetch_jobs() == []

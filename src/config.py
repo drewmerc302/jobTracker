@@ -59,6 +59,7 @@ class Config:
                 "url_template": "https://stripe.com/jobs/listing/{slug}/{id}",
             },
             "gitlab": {"display_name": "GitLab"},
+            "affirm": {"display_name": "Affirm"},
         }
     )
     workday_companies: dict[str, dict] = field(
@@ -77,6 +78,15 @@ class Config:
                 "display_name": "Cisco",
                 "base_url": "https://cisco.wd5.myworkdayjobs.com",
                 "path": "/wday/cxs/cisco/Cisco_Careers",
+            },
+        }
+    )
+    oracle_companies: dict[str, dict] = field(
+        default_factory=lambda: {
+            "jpmc": {
+                "display_name": "JPMorganChase",
+                "tenant": "jpmc",
+                "site_number": "CX_1001",
             },
         }
     )
