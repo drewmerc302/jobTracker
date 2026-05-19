@@ -94,6 +94,7 @@ class Config:
         default_factory=lambda: [
             "engineering manager",
             "manager of engineering",
+            "manager of software engineering",
             "director of engineering",
             "head of engineering",
             "software engineering manager",
