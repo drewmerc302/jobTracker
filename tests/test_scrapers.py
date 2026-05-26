@@ -332,3 +332,115 @@ def test_oracle_handles_failure(mock_client_class):
 
     s = OracleScraper(company_name="JPMorganChase", tenant="jpmc")
     assert s.fetch_jobs() == []
+
+
+def test_lever_parse_jobs():
+    from src.scrapers.lever import LeverScraper
+
+    with open(FIXTURES / "lever_spotify.json") as f:
+        data = json.load(f)
+    scraper = LeverScraper(slug="spotify", company_name="Spotify")
+    jobs = scraper._parse_response(data)
+    assert len(jobs) == 2
+    assert jobs[0].external_id == "abc-123-def"
+    assert jobs[0].company == "Spotify"
+    assert jobs[0].title == "Engineering Manager - Advertising"
+    assert jobs[0].url == "https://jobs.lever.co/spotify/abc-123-def"
+    assert jobs[0].location == "New York"
+    assert jobs[0].department == "Engineering"
+    assert jobs[0].remote is False  # hybrid
+    assert jobs[0].seniority == "Permanent"
+    assert "Lead our advertising engineering team." in jobs[0].description
+    assert "What You'll Do" in jobs[0].description
+    assert "Who You Are" in jobs[0].description
+    assert "equal opportunity employer" in jobs[0].description
+
+
+def test_lever_parse_remote_job():
+    from src.scrapers.lever import LeverScraper
+
+    with open(FIXTURES / "lever_spotify.json") as f:
+        data = json.load(f)
+    scraper = LeverScraper(slug="spotify", company_name="Spotify")
+    jobs = scraper._parse_response(data)
+    assert jobs[1].remote is True  # workplaceType: remote
+    assert jobs[1].title == "Senior Data Scientist - Music Recs"
+
+
+def test_lever_description_assembly():
+    from src.scrapers.lever import LeverScraper
+
+    scraper = LeverScraper(slug="test", company_name="Test")
+    item = {
+        "descriptionPlain": "Intro paragraph.",
+        "lists": [
+            {"text": "Requirements", "content": "<li>Skill A</li>"},
+            {"text": "Nice to Have", "content": "<li>Skill B</li>"},
+        ],
+        "additionalPlain": "EEO statement.",
+    }
+    desc = scraper._build_description(item)
+    assert "Intro paragraph." in desc
+    assert "Requirements" in desc
+    assert "Nice to Have" in desc
+    assert "EEO statement." in desc
+
+
+@patch("src.scrapers.lever.httpx.get")
+def test_lever_fetch_jobs(mock_get):
+    from src.scrapers.lever import LeverScraper
+
+    with open(FIXTURES / "lever_spotify.json") as f:
+        data = json.load(f)
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = data
+    mock_response.raise_for_status = MagicMock()
+    mock_get.return_value = mock_response
+
+    scraper = LeverScraper(slug="spotify", company_name="Spotify")
+    jobs = scraper.fetch_jobs()
+    assert len(jobs) == 2
+    mock_get.assert_called_once()
+    assert "spotify" in mock_get.call_args[0][0]
+
+
+@patch("src.scrapers.lever.httpx.get")
+def test_lever_handles_failure(mock_get):
+    from src.scrapers.lever import LeverScraper
+
+    mock_get.side_effect = Exception("Connection refused")
+    scraper = LeverScraper(slug="spotify", company_name="Spotify")
+    jobs = scraper.fetch_jobs()
+    assert jobs == []
+
+
+@patch("src.scrapers.lever.httpx")
+def test_lever_is_job_live_returns_true_on_200(mock_httpx):
+    from src.scrapers.lever import LeverScraper
+
+    scraper = LeverScraper(slug="spotify", company_name="Spotify")
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_httpx.get.return_value = mock_resp
+    assert scraper.is_job_live("https://jobs.lever.co/spotify/abc-123") is True
+
+
+@patch("src.scrapers.lever.httpx")
+def test_lever_is_job_live_returns_false_on_404(mock_httpx):
+    from src.scrapers.lever import LeverScraper
+
+    scraper = LeverScraper(slug="spotify", company_name="Spotify")
+    mock_resp = MagicMock()
+    mock_resp.status_code = 404
+    mock_httpx.get.return_value = mock_resp
+    assert scraper.is_job_live("https://jobs.lever.co/spotify/abc-123") is False
+
+
+@patch("src.scrapers.lever.httpx")
+def test_lever_is_job_live_returns_none_on_error(mock_httpx):
+    from src.scrapers.lever import LeverScraper
+
+    scraper = LeverScraper(slug="spotify", company_name="Spotify")
+    mock_httpx.get.side_effect = Exception("timeout")
+    assert scraper.is_job_live("https://jobs.lever.co/spotify/abc-123") is None

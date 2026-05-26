@@ -1,0 +1,66 @@
+[
+  {
+    "id": "abc-123-def",
+    "text": "Engineering Manager - Advertising",
+    "hostedUrl": "https://jobs.lever.co/spotify/abc-123-def",
+    "applyUrl": "https://jobs.lever.co/spotify/abc-123-def/apply",
+    "categories": {
+      "location": "New York",
+      "allLocations": ["New York", "Remote"],
+      "department": "Engineering",
+      "team": "Ads Platform",
+      "commitment": "Permanent"
+    },
+    "country": null,
+    "workplaceType": "hybrid",
+    "createdAt": 1773335421350,
+    "description": "<p>Lead our advertising engineering team.</p>",
+    "descriptionPlain": "Lead our advertising engineering team.",
+    "descriptionBody": "<p>Lead our advertising engineering team.</p>",
+    "descriptionBodyPlain": "Lead our advertising engineering team.",
+    "additional": "<p>We are an equal opportunity employer.</p>",
+    "additionalPlain": "We are an equal opportunity employer.",
+    "lists": [
+      {
+        "text": "What You'll Do",
+        "content": "<ul><li>Lead a team of 8-12 engineers</li><li>Drive technical roadmap</li></ul>"
+      },
+      {
+        "text": "Who You Are",
+        "content": "<ul><li>5+ years engineering management</li><li>Strong communication skills</li></ul>"
+      }
+    ],
+    "opening": "Engineering Manager",
+    "openingPlain": "Engineering Manager"
+  },
+  {
+    "id": "xyz-789-ghi",
+    "text": "Senior Data Scientist - Music Recs",
+    "hostedUrl": "https://jobs.lever.co/spotify/xyz-789-ghi",
+    "applyUrl": "https://jobs.lever.co/spotify/xyz-789-ghi/apply",
+    "categories": {
+      "location": "Remote - US",
+      "allLocations": ["Remote - US"],
+      "department": "Data and Analytics",
+      "team": "Recommendations",
+      "commitment": "Permanent"
+    },
+    "country": null,
+    "workplaceType": "remote",
+    "createdAt": 1773200000000,
+    "description": "<p>Build recommendation systems.</p>",
+    "descriptionPlain": "Build recommendation systems.",
+    "descriptionBody": "<p>Build recommendation systems.</p>",
+    "descriptionBodyPlain": "Build recommendation systems.",
+    "additional": "",
+    "additionalPlain": "",
+    "lists": [
+      {
+        "text": "Requirements",
+        "content": "<ul><li>PhD or MS in relevant field</li></ul>"
+      }
+    ],
+    "opening": "Senior Data Scientist",
+    "openingPlain": "Senior Data Scientist"
+  }
+]

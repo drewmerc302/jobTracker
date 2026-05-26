@@ -81,6 +81,11 @@ class Config:
             },
         }
     )
+    lever_companies: dict[str, dict] = field(
+        default_factory=lambda: {
+            "spotify": {"display_name": "Spotify"},
+        }
+    )
     oracle_companies: dict[str, dict] = field(
         default_factory=lambda: {
             "jpmc": {

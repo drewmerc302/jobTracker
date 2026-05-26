@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from src.config import Config
 from src.db import Database
 from src.scrapers.greenhouse import GreenhouseScraper
+from src.scrapers.lever import LeverScraper
 from src.scrapers.workday import WorkdayScraper
 from src.steps.scrape import run_scrape
 from src.steps.filter import run_filter
@@ -181,6 +182,13 @@ def build_scrapers(config: Config) -> list:
                 site_number=info.get("site_number", "CX_1001"),
                 keyword_patterns=config.keyword_patterns,
                 countries=info.get("countries", ["US"]),
+            )
+        )
+    for slug, info in config.lever_companies.items():
+        scrapers.append(
+            LeverScraper(
+                slug=slug,
+                company_name=info["display_name"],
             )
         )
     scrapers.append(AppleScraper())
