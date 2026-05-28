@@ -24,6 +24,8 @@ _http_retry = retry(
 
 
 class LeverScraper(BaseScraper):
+    source = "lever"
+
     def __init__(self, slug: str, company_name: str):
         self.slug = slug
         self.company_name = company_name
@@ -60,6 +62,7 @@ class LeverScraper(BaseScraper):
                     department=item.get("categories", {}).get("department"),
                     seniority=item.get("categories", {}).get("commitment"),
                     scraped_at=now,
+                    source=self.source,
                 )
             )
         return jobs

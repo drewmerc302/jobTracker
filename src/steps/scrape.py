@@ -53,6 +53,7 @@ def run_scrape(db: Database, scrapers: list[BaseScraper]) -> dict:
                 department=job.department,
                 seniority=job.seniority,
                 scraped_at=job.scraped_at,
+                source=job.source or None,
             )
         db.commit()
 

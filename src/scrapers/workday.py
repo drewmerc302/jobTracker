@@ -24,6 +24,8 @@ _http_retry = retry(
 
 
 class WorkdayScraper(BaseScraper):
+    source = "workday"
+
     def __init__(
         self,
         company_name: str,
@@ -79,6 +81,7 @@ class WorkdayScraper(BaseScraper):
                             department=None,
                             seniority=None,
                             scraped_at=now,
+                            source=self.source,
                         )
                     )
 
@@ -174,6 +177,7 @@ class WorkdayScraper(BaseScraper):
                 department=None,
                 seniority=None,
                 scraped_at=now,
+                source=self.source,
             )
 
     def _parse_detail(self, data: dict, external_id: str) -> RawJob:
@@ -197,6 +201,7 @@ class WorkdayScraper(BaseScraper):
             department=None,
             seniority=None,
             scraped_at=now,
+            source=self.source,
         )
 
     def _extract_salary(self, html_content: str) -> str | None:

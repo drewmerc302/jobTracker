@@ -31,6 +31,7 @@ class AppleScraper(BaseScraper):
     """Scrapes Apple jobs by parsing server-side rendered hydration data."""
 
     company_name = "Apple"
+    source = "apple"
 
     def fetch_jobs(self) -> list[RawJob]:
         try:
@@ -122,6 +123,7 @@ class AppleScraper(BaseScraper):
             else None,
             seniority=None,
             scraped_at=now,
+            source=self.source,
         )
 
     def is_job_live(self, url: str) -> bool | None:

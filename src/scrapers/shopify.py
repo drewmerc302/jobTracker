@@ -121,6 +121,7 @@ class ShopifyScraper(BaseScraper):
     """Scrapes Shopify jobs from the Ashby-backed careers page."""
 
     company_name = "Shopify"
+    source = "shopify"
 
     def fetch_jobs(self) -> list[RawJob]:
         try:
@@ -218,6 +219,7 @@ class ShopifyScraper(BaseScraper):
             department=department,
             seniority=None,
             scraped_at=now,
+            source=self.source,
         )
 
     def is_job_live(self, url: str) -> bool | None:

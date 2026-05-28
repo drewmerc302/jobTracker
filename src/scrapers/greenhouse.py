@@ -34,6 +34,8 @@ def _slugify(title: str) -> str:
 
 
 class GreenhouseScraper(BaseScraper):
+    source = "greenhouse"
+
     def __init__(
         self, board_slug: str, company_name: str, url_template: str | None = None
     ):
@@ -77,6 +79,7 @@ class GreenhouseScraper(BaseScraper):
                     else None,
                     seniority=seniority,
                     scraped_at=now,
+                    source=self.source,
                 )
             )
         return jobs

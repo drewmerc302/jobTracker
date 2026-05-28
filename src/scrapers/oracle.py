@@ -31,6 +31,8 @@ class OracleScraper(BaseScraper):
     full description fields, so no detail-fetch step needed.
     """
 
+    source = "oracle"
+
     def __init__(
         self,
         company_name: str,
@@ -185,6 +187,7 @@ class OracleScraper(BaseScraper):
             department=r.get("Department") or r.get("JobFamily"),
             seniority=r.get("ManagerLevel"),
             scraped_at=now,
+            source=self.source,
         )
 
     def _build_url(self, req_id: str) -> str:

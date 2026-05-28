@@ -46,6 +46,7 @@ class FidelityScraper(BaseScraper):
     """Scrapes Fidelity jobs from jobs.fidelity.com using Chrome TLS impersonation."""
 
     company_name = "Fidelity"
+    source = "fidelity"
 
     def fetch_jobs(self) -> list[RawJob]:
         try:
@@ -184,6 +185,7 @@ class FidelityScraper(BaseScraper):
                     department=None,
                     seniority=employment_type,
                     scraped_at=now,
+                    source=self.source,
                 )
             except (json.JSONDecodeError, AttributeError) as e:
                 logger.warning(f"Fidelity: failed to parse ld+json for {job_id}: {e}")
@@ -205,6 +207,7 @@ class FidelityScraper(BaseScraper):
             department=None,
             seniority=None,
             scraped_at=now,
+            source=self.source,
         )
 
     def is_job_live(self, url: str) -> bool | None:

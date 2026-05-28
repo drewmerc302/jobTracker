@@ -27,6 +27,7 @@ class Database:
                 description TEXT,
                 department TEXT,
                 seniority TEXT,
+                source TEXT,
                 first_seen_at TEXT NOT NULL,
                 last_seen_at TEXT NOT NULL,
                 closed_at TEXT
@@ -97,7 +98,38 @@ class Database:
             self._conn.execute(
                 "ALTER TABLE matches ADD COLUMN interview_prep_path TEXT"
             )
+        # Migrate jobs table: add source column + backfill
+        job_cols = {
+            row[1] for row in self._conn.execute("PRAGMA table_info(jobs)").fetchall()
+        }
+        if "source" not in job_cols:
+            self._conn.execute("ALTER TABLE jobs ADD COLUMN source TEXT")
+            self._backfill_job_sources()
         self._conn.commit()
+
+    _SOURCE_BY_COMPANY = {
+        "Dropbox": "greenhouse",
+        "DataDog": "greenhouse",
+        "Stripe": "greenhouse",
+        "GitLab": "greenhouse",
+        "Affirm": "greenhouse",
+        "Capital One": "workday",
+        "Netflix": "workday",
+        "Cisco": "workday",
+        "JPMorganChase": "oracle",
+        "Spotify": "lever",
+        "Apple": "apple",
+        "Google": "google",
+        "Fidelity": "fidelity",
+        "Shopify": "shopify",
+    }
+
+    def _backfill_job_sources(self):
+        for company, source in self._SOURCE_BY_COMPANY.items():
+            self._conn.execute(
+                "UPDATE jobs SET source = ? WHERE company = ? AND source IS NULL",
+                (source, company),
+            )
 
     def upsert_job(
         self,
@@ -113,18 +145,21 @@ class Database:
         description: str = None,
         department: str = None,
         seniority: str = None,
+        source: str = None,
     ):
         now = scraped_at.isoformat()
         self._conn.execute(
             """
             INSERT INTO jobs (id, company, title, url, location, remote, salary,
-                            description, department, seniority, first_seen_at, last_seen_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            description, department, seniority, source,
+                            first_seen_at, last_seen_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 last_seen_at = excluded.last_seen_at,
                 description = COALESCE(excluded.description, jobs.description),
                 salary = COALESCE(excluded.salary, jobs.salary),
                 location = COALESCE(excluded.location, jobs.location),
+                source = COALESCE(excluded.source, jobs.source),
                 closed_at = NULL
         """,
             (
@@ -138,6 +173,7 @@ class Database:
                 description,
                 department,
                 seniority,
+                source,
                 now,
                 now,
             ),
@@ -546,7 +582,8 @@ class Database:
     def get_active_matches(self) -> list[dict]:
         """Return all non-dismissed matches for open jobs (matches screen)."""
         rows = self._conn.execute("""
-            SELECT m.job_id, j.company, j.title, j.location, m.relevance_score,
+            SELECT m.job_id, j.company, j.title, j.location, j.source,
+                   m.relevance_score,
                    CASE WHEN m.resume_path IS NOT NULL THEN '✓' ELSE '—' END as has_pdf,
                    COALESCE(a.status, 'new') as status,
                    j.first_seen_at, j.closed_at

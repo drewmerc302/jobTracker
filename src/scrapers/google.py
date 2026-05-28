@@ -38,6 +38,7 @@ class GoogleScraper(BaseScraper):
     """Scrapes Google Careers by parsing AF_initDataCallback data from HTML pages."""
 
     company_name = "Google"
+    source = "google"
 
     def fetch_jobs(self) -> list[RawJob]:
         try:
@@ -185,6 +186,7 @@ class GoogleScraper(BaseScraper):
             department=None,
             seniority=None,
             scraped_at=now,
+            source=self.source,
         )
 
     def is_job_live(self, url: str) -> bool | None:

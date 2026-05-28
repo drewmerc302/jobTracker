@@ -16,6 +16,7 @@ class RawJob:
     department: str | None
     seniority: str | None
     scraped_at: datetime
+    source: str = ""
 
     @property
     def db_id(self) -> str:
@@ -24,6 +25,7 @@ class RawJob:
 
 class BaseScraper(ABC):
     company_name: str
+    source: str = ""
 
     @abstractmethod
     def fetch_jobs(self) -> list[RawJob]: ...

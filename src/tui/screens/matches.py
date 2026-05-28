@@ -22,7 +22,7 @@ class MatchesScreen(Screen):
         Binding("escape", "app.switch_screen('dashboard')", "Back"),
     ]
 
-    SORT_MODES = ["score", "date", "company"]
+    SORT_MODES = ["score", "date", "company", "source"]
 
     def __init__(self):
         super().__init__()
@@ -38,7 +38,14 @@ class MatchesScreen(Screen):
     def on_mount(self) -> None:
         table = self.query_one("#matches-table", DataTable)
         table.add_columns(
-            "Score", "PDF", "Status", "First Seen", "Company", "Title", "Location"
+            "Score",
+            "PDF",
+            "Status",
+            "First Seen",
+            "Source",
+            "Company",
+            "Title",
+            "Location",
         )
         self._load_data()
         self._update_filter_bar()
@@ -57,26 +64,53 @@ class MatchesScreen(Screen):
             filtered = [
                 r
                 for r in filtered
-                if ft in r["company"].lower() or ft in r["title"].lower()
+                if ft in r["company"].lower()
+                or ft in r["title"].lower()
+                or ft in (r.get("source") or "").lower()
             ]
 
         sort_key = self.SORT_MODES[self._sort_index]
         if sort_key == "score":
-            filtered.sort(key=lambda r: r["relevance_score"], reverse=True)
+            filtered.sort(
+                key=lambda r: (bool(r.get("closed_at")), -r["relevance_score"])
+            )
         elif sort_key == "date":
             filtered.sort(key=lambda r: r.get("first_seen_at") or "", reverse=True)
+            filtered.sort(key=lambda r: bool(r.get("closed_at")))
         elif sort_key == "company":
             filtered.sort(key=lambda r: r["company"].lower())
+            filtered.sort(key=lambda r: bool(r.get("closed_at")))
+        elif sort_key == "source":
+            filtered.sort(key=lambda r: r["company"].lower())
+            filtered.sort(key=lambda r: (r.get("source") or "zzz").lower())
+            filtered.sort(key=lambda r: bool(r.get("closed_at")))
 
         for r in filtered:
             seen = (r.get("first_seen_at") or "")[:10]
+            is_closed = bool(r.get("closed_at"))
+            title = r["title"][:38]
+            if is_closed:
+                title = f"[strike]{title}[/strike]"
+            company = r["company"]
+            if is_closed:
+                company = f"[dim]{company}[/dim]"
+            score_str = f"{r['relevance_score']:.0%}"
+            if is_closed:
+                score_str = f"[dim]{score_str}[/dim]"
+            status_str = r["status"]
+            if is_closed:
+                status_str = f"[red]✕[/red] {status_str}"
+            source_str = r.get("source") or "—"
+            if is_closed:
+                source_str = f"[dim]{source_str}[/dim]"
             table.add_row(
-                f"{r['relevance_score']:.0%}",
+                score_str,
                 r["has_pdf"],
-                r["status"],
+                status_str,
                 seen,
-                r["company"],
-                r["title"][:40],
+                source_str,
+                company,
+                title,
                 (r.get("location") or "")[:20],
                 key=r["job_id"],
             )
