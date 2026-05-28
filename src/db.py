@@ -394,16 +394,17 @@ class Database:
             LEFT JOIN applications a ON m.job_id = a.job_id
             WHERE m.dismissed_at IS NULL
               AND (j.closed_at IS NULL
-                   OR COALESCE(a.status, 'new') IN ('applied', 'interviewing', 'offer', 'closed'))
+                   OR COALESCE(a.status, 'new') IN ('interested', 'applied', 'interviewing', 'offer', 'closed'))
             ORDER BY
                 CASE COALESCE(a.status, 'new')
                     WHEN 'interviewing' THEN 1
                     WHEN 'offer' THEN 2
                     WHEN 'applied' THEN 3
-                    WHEN 'new' THEN 4
-                    WHEN 'closed' THEN 5
-                    WHEN 'rejected' THEN 6
-                    WHEN 'withdrawn' THEN 7
+                    WHEN 'interested' THEN 4
+                    WHEN 'new' THEN 5
+                    WHEN 'closed' THEN 6
+                    WHEN 'rejected' THEN 7
+                    WHEN 'withdrawn' THEN 8
                 END,
                 m.relevance_score DESC
         """).fetchall()
@@ -548,10 +549,12 @@ class Database:
             SELECT m.job_id, j.company, j.title, j.location, m.relevance_score,
                    CASE WHEN m.resume_path IS NOT NULL THEN '✓' ELSE '—' END as has_pdf,
                    COALESCE(a.status, 'new') as status,
-                   j.first_seen_at
+                   j.first_seen_at, j.closed_at
             FROM matches m JOIN jobs j ON m.job_id = j.id
             LEFT JOIN applications a ON m.job_id = a.job_id
-            WHERE j.closed_at IS NULL AND m.dismissed_at IS NULL
+            WHERE m.dismissed_at IS NULL
+              AND (j.closed_at IS NULL
+                   OR COALESCE(a.status, 'new') != 'new')
             ORDER BY m.relevance_score DESC
         """).fetchall()
         return [dict(r) for r in rows]

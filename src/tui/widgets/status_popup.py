@@ -5,7 +5,15 @@ from textual.widgets import Static, OptionList
 from textual.widgets.option_list import Option
 
 
-STATUSES = ["new", "applied", "interviewing", "offer", "rejected", "withdrawn"]
+STATUSES = [
+    "new",
+    "interested",
+    "applied",
+    "interviewing",
+    "offer",
+    "rejected",
+    "withdrawn",
+]
 
 
 class StatusPopup(ModalScreen):

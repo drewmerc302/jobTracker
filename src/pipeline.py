@@ -360,6 +360,7 @@ def run_pipeline(args):
         job_id, new_status = args.status
         valid_statuses = [
             "new",
+            "interested",
             "applied",
             "interviewing",
             "offer",
@@ -412,6 +413,7 @@ def run_pipeline(args):
 
         valid_statuses = [
             "new",
+            "interested",
             "applied",
             "interviewing",
             "offer",

@@ -63,6 +63,7 @@ DataTable > .datatable--cursor {
 }
 
 .status-new { color: #f0883e; }
+.status-interested { color: #d29922; }
 .status-applied { color: #3fb950; }
 .status-interviewing { color: #a371f7; }
 .status-offer { color: #f0883e; }

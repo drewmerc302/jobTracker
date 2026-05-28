@@ -9,6 +9,7 @@ STATUS_ORDER = [
     "interviewing",
     "applied",
     "offer",
+    "interested",
     "new",
     "closed",
     "rejected",

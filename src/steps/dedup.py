@@ -12,9 +12,10 @@ _PUNCT = re.compile(r"[,\-./\\()\[\]]")
 _WHITESPACE = re.compile(r"\s+")
 
 _STATUS_RANK = {
-    "interviewing": 5,
-    "offer": 4,
-    "applied": 3,
+    "interviewing": 6,
+    "offer": 5,
+    "applied": 4,
+    "interested": 3,
     "new": 2,
     "rejected": 1,
     "withdrawn": 0,

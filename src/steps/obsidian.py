@@ -18,6 +18,7 @@ STATUS_ORDER = [
     ("interviewing", "Interviewing"),
     ("offer", "Offer"),
     ("applied", "Applied"),
+    ("interested", "Interested"),
     ("new", "New"),
     ("rejected", "Rejected"),
     ("withdrawn", "Withdrawn"),
