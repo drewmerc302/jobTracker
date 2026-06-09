@@ -48,6 +48,29 @@ def test_follow_ups_prints_overdue(db_with_applied_job, tmp_path, capsys):
     assert overdue[0]["company"] == "Stripe"
 
 
+def test_closed_job_excluded_from_follow_ups(db_with_applied_job):
+    """A delisted (closed) job must not appear in the overdue follow-up queue."""
+    assert len(db_with_applied_job.get_overdue_follow_ups()) == 1
+    db_with_applied_job.close_job("stripe:1")
+    assert db_with_applied_job.get_overdue_follow_ups() == []
+
+
+def test_reopened_job_resurfaces_follow_up(db_with_applied_job):
+    """Re-scraping a previously-closed job clears closed_at and restores its follow-up."""
+    db_with_applied_job.close_job("stripe:1")
+    assert db_with_applied_job.get_overdue_follow_ups() == []
+    # Re-upsert (as a scrape would) clears closed_at
+    db_with_applied_job.upsert_job(
+        id="stripe:1",
+        company="Stripe",
+        title="EM",
+        url="https://x.com",
+        scraped_at=datetime.now(timezone.utc),
+    )
+    db_with_applied_job.commit()
+    assert len(db_with_applied_job.get_overdue_follow_ups()) == 1
+
+
 def test_followed_up_resets_date(db_with_applied_job):
     db_with_applied_job.mark_followed_up("stripe:1", reset_days=7)
     app = db_with_applied_job.get_application("stripe:1")

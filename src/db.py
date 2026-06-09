@@ -489,6 +489,7 @@ class Database:
             WHERE a.follow_up_after IS NOT NULL
               AND a.follow_up_after <= ?
               AND a.status IN ('new', 'applied', 'interviewing')
+              AND j.closed_at IS NULL
             ORDER BY a.follow_up_after ASC
             """,
             (today, today),
