@@ -60,6 +60,7 @@ class Config:
             },
             "gitlab": {"display_name": "GitLab"},
             "affirm": {"display_name": "Affirm"},
+            "fanaticsfbg": {"display_name": "Fanatics"},
         }
     )
     workday_companies: dict[str, dict] = field(
