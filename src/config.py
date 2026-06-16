@@ -61,6 +61,7 @@ class Config:
             "gitlab": {"display_name": "GitLab"},
             "affirm": {"display_name": "Affirm"},
             "fanaticsfbg": {"display_name": "Fanatics"},
+            "duolingo": {"display_name": "Duolingo"},
         }
     )
     workday_companies: dict[str, dict] = field(

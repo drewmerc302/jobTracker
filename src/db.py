@@ -113,6 +113,7 @@ class Database:
         "Stripe": "greenhouse",
         "GitLab": "greenhouse",
         "Affirm": "greenhouse",
+        "Duolingo": "greenhouse",
         "Capital One": "workday",
         "Netflix": "workday",
         "Cisco": "workday",
