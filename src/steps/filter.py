@@ -117,9 +117,40 @@ Description:
     }
 
 
+def prune_stale_matches(db: Database, config: Config) -> int:
+    """Dismiss active matches whose job no longer passes the location gate.
+
+    Matches scored under older or looser rules can linger in unacceptable
+    locations (e.g. an offshore role matched before the commute filter
+    tightened, or a dual-posted role whose canonical was previously the
+    unacceptable twin). Re-checking on every filter run keeps the match list
+    honest. Dismissal is reversible (undismiss_match), so nothing is lost."""
+    rows = db._conn.execute(
+        """SELECT m.job_id, j.company, j.title, j.location, j.remote
+           FROM matches m JOIN jobs j ON j.id = m.job_id
+           WHERE m.dismissed_at IS NULL AND j.closed_at IS NULL"""
+    ).fetchall()
+    pruned = 0
+    for r in rows:
+        if not config.is_location_acceptable(r["location"], r["remote"]):
+            db.dismiss_match(r["job_id"])
+            logger.info(
+                f"Pruned stale match {r['company']}:{r['title']} — "
+                f"location {r['location']!r} not in commute range"
+            )
+            pruned += 1
+    if pruned:
+        logger.info(f"Pruned {pruned} stale match(es) failing location gate")
+    return pruned
+
+
 def run_filter(
     db: Database, new_job_ids: list[str], resume_summary: str, config: Config
 ) -> list[dict]:
+    # Re-check existing matches against the current location gate first, so
+    # stale offshore/unacceptable matches get dismissed even on runs that
+    # surface no new jobs.
+    prune_stale_matches(db, config)
     jobs = []
     for job_id in new_job_ids:
         job = db.get_job(job_id)

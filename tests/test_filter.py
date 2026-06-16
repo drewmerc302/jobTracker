@@ -1,8 +1,16 @@
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
+import pytest
 
 from src.config import Config
-from src.steps.filter import keyword_filter, llm_evaluate
+from src.db import Database
+from src.steps.filter import keyword_filter, llm_evaluate, prune_stale_matches
+
+
+@pytest.fixture
+def db(tmp_path):
+    return Database(tmp_path / "test.db")
 
 
 def test_keyword_filter_matches():
@@ -66,3 +74,41 @@ def test_llm_evaluate_returns_structured_result():
     )
     assert result["relevant"] is True
     assert result["score"] == 0.85
+
+
+def _seed_match(db, job_id, location, remote=False):
+    db.upsert_job(
+        id=job_id,
+        company="Stripe",
+        title="Engineering Manager",
+        url=f"https://example.com/{job_id}",
+        location=location,
+        remote=remote,
+        scraped_at=datetime.now(timezone.utc),
+    )
+    db.commit()
+    db.insert_match(job_id=job_id, relevance_score=0.9, match_reason="strong")
+
+
+def test_prune_dismisses_unacceptable_location_match(db):
+    config = Config()
+    _seed_match(db, "Stripe:nyc", "New York, NY")
+    _seed_match(db, "Stripe:blr", "Bengaluru")
+    pruned = prune_stale_matches(db, config)
+    assert pruned == 1
+    active_ids = {m["job_id"] for m in db.get_active_matches()}
+    assert "Stripe:nyc" in active_ids  # acceptable match kept
+    assert "Stripe:blr" not in active_ids  # offshore match dismissed
+
+
+def test_prune_keeps_remote_match(db):
+    config = Config()
+    # Unacceptable city string but flagged remote -> acceptable, must survive.
+    _seed_match(db, "Stripe:rem", "Bengaluru", remote=True)
+    pruned = prune_stale_matches(db, config)
+    assert pruned == 0
+    assert "Stripe:rem" in {m["job_id"] for m in db.get_active_matches()}
+
+
+def test_prune_noop_on_empty_db(db):
+    assert prune_stale_matches(db, Config()) == 0
