@@ -153,7 +153,7 @@ class PipelineScreen(Screen):
                     f"Deduplicating... (scraped {jobs_scraped} jobs, {new_jobs} new)",
                 )
 
-                run_dedup(db)
+                run_dedup(db, config)
                 self.app.call_from_thread(self._set_spinner_label, "Filtering...")
 
                 _, resume_data = get_active_resume_yaml(config)
@@ -194,7 +194,7 @@ class PipelineScreen(Screen):
 
             scrapers = build_scrapers(config)
             result = run_scrape(db, scrapers)
-            run_dedup(db)
+            run_dedup(db, config)
             return f"{result['jobs_scraped']} jobs, {result['new_jobs']} new"
 
         self._run_pipeline_step("Scrape", do_scrape)

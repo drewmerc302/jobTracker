@@ -80,7 +80,7 @@ def test_full_pipeline_runs_dedup_after_scrape(tmp_path, monkeypatch):
     db = Database(tmp_path / "dedup_test.db")
     dedup_calls = []
 
-    def fake_dedup(d):
+    def fake_dedup(d, config=None):
         dedup_calls.append(True)
         return (0, 0)
 

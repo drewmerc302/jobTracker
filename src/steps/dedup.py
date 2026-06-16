@@ -44,10 +44,24 @@ def _score_job(job: dict) -> int:
     return score
 
 
-def _pick_canonical(jobs: list[dict]) -> tuple[dict, list[dict]]:
+def _location_acceptable(job: dict, config) -> bool:
+    """Whether this job's location passes the commute filter. Used as the
+    top-priority canonical tiebreaker so a role cross-posted in an acceptable
+    location (e.g. NYC) is never collapsed into its unacceptable twin (e.g.
+    Pittsburgh) — which the downstream location filter would then suppress."""
+    if config is None:
+        return False  # neutral: no location preference, fall through to _score_job
+    return config.is_location_acceptable(job.get("location"), job.get("remote"))
+
+
+def _pick_canonical(jobs: list[dict], config=None) -> tuple[dict, list[dict]]:
     ranked = sorted(
         jobs,
-        key=lambda j: (_score_job(j), -_parse_ts(j["first_seen_at"])),
+        key=lambda j: (
+            _location_acceptable(j, config),
+            _score_job(j),
+            -_parse_ts(j["first_seen_at"]),
+        ),
         reverse=True,
     )
     return ranked[0], ranked[1:]
@@ -145,10 +159,14 @@ def _merge_status_history(db: Database, canonical_id: str, dup_id: str):
     )
 
 
-def run_dedup(db: Database) -> tuple[int, int]:
-    """Find and merge duplicate jobs. Returns (groups_merged, records_removed)."""
+def run_dedup(db: Database, config=None) -> tuple[int, int]:
+    """Find and merge duplicate jobs. Returns (groups_merged, records_removed).
+
+    When ``config`` is provided, the canonical job in each duplicate group is
+    chosen with location-acceptability as the top priority, so an acceptable
+    twin survives over an unacceptable one."""
     rows = db._conn.execute(
-        "SELECT id, company, title, description, salary, location, department, first_seen_at FROM jobs"
+        "SELECT id, company, title, description, salary, location, remote, department, first_seen_at FROM jobs"
     ).fetchall()
 
     # Group by (company, normalized_title)
@@ -163,7 +181,7 @@ def run_dedup(db: Database) -> tuple[int, int]:
     for key, jobs in groups.items():
         if len(jobs) < 2:
             continue
-        canonical, duplicates = _pick_canonical(jobs)
+        canonical, duplicates = _pick_canonical(jobs, config)
         removed = _merge_group(db, canonical, duplicates)
         if removed:
             total_merged += 1

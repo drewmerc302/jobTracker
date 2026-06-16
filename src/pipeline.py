@@ -790,7 +790,7 @@ def run_pipeline(args):
         return
 
     if args.step == "dedup":
-        merged, removed = run_dedup(db)
+        merged, removed = run_dedup(db, config)
         print(
             f"Dedup complete: {merged} duplicate groups merged, {removed} records removed"
         )
@@ -810,7 +810,7 @@ def run_pipeline(args):
             logger.info(
                 f"Scrape complete: {scrape_result['jobs_scraped']} jobs, {scrape_result['new_jobs']} new"
             )
-            run_dedup(db)  # deduplicate after each scrape
+            run_dedup(db, config)  # deduplicate after each scrape
             if args.step == "scrape":
                 db.complete_run(
                     run_id,

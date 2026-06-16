@@ -1,6 +1,7 @@
 import pytest
 from datetime import datetime, timezone
 
+from src.config import Config
 from src.db import Database
 from src.steps.dedup import _normalize_title, _score_job, run_dedup
 
@@ -77,6 +78,63 @@ def test_score_no_fields():
 def test_score_short_description_no_bonus():
     job = {"salary": None, "description": "short", "location": None, "department": None}
     assert _score_job(job) == 0
+
+
+# --- location-aware canonical pick ---
+
+
+def test_dedup_prefers_acceptable_location_with_config(db):
+    """A role cross-posted in NYC (acceptable) + Pittsburgh (not) must keep the
+    NYC listing as canonical so the downstream location filter can't suppress it.
+    Without location awareness, recency/score would pick arbitrarily."""
+    config = Config()
+    assert config.is_location_acceptable("New York, NY", False) is True
+    assert config.is_location_acceptable("Pittsburgh, PA", False) is False
+    # Pittsburgh twin inserted second (more recent) — would win the old tiebreak.
+    _make_job(
+        db,
+        "duolingo:nyc",
+        "Duolingo",
+        "Senior Engineering Manager, Growth",
+        location="New York, NY",
+        remote=False,
+    )
+    _make_job(
+        db,
+        "duolingo:pgh",
+        "Duolingo",
+        "Senior Engineering Manager, Growth",
+        location="Pittsburgh, PA",
+        remote=False,
+    )
+    merged, removed = run_dedup(db, config)
+    assert merged == 1
+    assert removed == 1
+    assert db.get_job("duolingo:nyc") is not None  # acceptable twin survives
+    assert db.get_job("duolingo:pgh") is None  # unacceptable twin merged away
+
+
+def test_dedup_without_config_is_location_blind(db):
+    """No config → original behavior: score+recency decide, no location preference."""
+    _make_job(
+        db,
+        "duolingo:nyc",
+        "Duolingo",
+        "Senior Engineering Manager, Growth",
+        location="New York, NY",
+        remote=False,
+    )
+    _make_job(
+        db,
+        "duolingo:pgh",
+        "Duolingo",
+        "Senior Engineering Manager, Growth",
+        location="Pittsburgh, PA",
+        remote=False,
+    )
+    merged, removed = run_dedup(db)
+    assert merged == 1
+    assert removed == 1  # still merges, just without location-aware canonical choice
 
 
 # --- run_dedup integration tests ---
