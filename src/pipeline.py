@@ -170,6 +170,7 @@ def build_scrapers(config: Config) -> list:
                 base_url=info["base_url"],
                 path=info["path"],
                 keyword_patterns=config.keyword_patterns,
+                search_text=info.get("search_text", "engineering manager"),
             )
         )
     from src.scrapers.oracle import OracleScraper

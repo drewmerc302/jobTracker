@@ -80,6 +80,14 @@ class Config:
                 "base_url": "https://cisco.wd5.myworkdayjobs.com",
                 "path": "/wday/cxs/cisco/Cisco_Careers",
             },
+            # Splunk was acquired by Cisco (closed Mar 2024); its roles live in
+            # Cisco's Workday tenant. Scope to Splunk-org postings via search_text.
+            "splunk": {
+                "display_name": "Splunk",
+                "base_url": "https://cisco.wd5.myworkdayjobs.com",
+                "path": "/wday/cxs/cisco/Cisco_Careers",
+                "search_text": "Splunk",
+            },
         }
     )
     lever_companies: dict[str, dict] = field(

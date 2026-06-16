@@ -32,6 +32,7 @@ class WorkdayScraper(BaseScraper):
         base_url: str,
         path: str,
         keyword_patterns: list[str] | None = None,
+        search_text: str = "engineering manager",
     ):
         self.company_name = company_name
         self.base_url = base_url
@@ -39,6 +40,7 @@ class WorkdayScraper(BaseScraper):
         self.page_size = 20
         self.request_delay = 1.5
         self.keyword_patterns = keyword_patterns or []
+        self.search_text = search_text
 
     def _title_matches(self, title: str) -> bool:
         title_lower = title.lower()
@@ -110,7 +112,7 @@ class WorkdayScraper(BaseScraper):
                     "appliedFacets": {},
                     "limit": self.page_size,
                     "offset": offset,
-                    "searchText": "engineering manager",
+                    "searchText": self.search_text,
                 },
             )
             data = resp.json()
@@ -187,7 +189,11 @@ class WorkdayScraper(BaseScraper):
         salary = self._extract_salary(description)
         location = info.get("location", "")
         additional = info.get("additionalLocations", [])
-        remote = any("remote" in (loc or "").lower() for loc in [location] + additional)
+        # Workday often encodes remote in the title (e.g. "... (Remote)") rather
+        # than the location field, so check both.
+        remote = "remote" in info.get("title", "").lower() or any(
+            "remote" in (loc or "").lower() for loc in [location] + additional
+        )
 
         return RawJob(
             external_id=external_id,
