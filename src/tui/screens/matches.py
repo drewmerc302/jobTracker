@@ -88,7 +88,7 @@ class MatchesScreen(Screen):
         for r in filtered:
             seen = (r.get("first_seen_at") or "")[:10]
             is_closed = bool(r.get("closed_at"))
-            title = r["title"][:38]
+            title = r["title"][:57]
             if is_closed:
                 title = f"[strike]{title}[/strike]"
             company = r["company"]
