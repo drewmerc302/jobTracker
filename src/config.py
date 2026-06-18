@@ -89,6 +89,11 @@ class Config:
                 "path": "/wday/cxs/cisco/Cisco_Careers",
                 "search_text": "Splunk",
             },
+            "trimble": {
+                "display_name": "Trimble",
+                "base_url": "https://trimble.wd1.myworkdayjobs.com",
+                "path": "/wday/cxs/trimble/TrimbleCareers",
+            },
         }
     )
     lever_companies: dict[str, dict] = field(
