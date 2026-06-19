@@ -584,7 +584,7 @@ class Database:
     def get_active_matches(self) -> list[dict]:
         """Return all non-dismissed matches for open jobs (matches screen)."""
         rows = self._conn.execute("""
-            SELECT m.job_id, j.company, j.title, j.location, j.source,
+            SELECT m.job_id, j.company, j.title, j.location, j.salary, j.source,
                    m.relevance_score,
                    CASE WHEN m.resume_path IS NOT NULL THEN '✓' ELSE '—' END as has_pdf,
                    COALESCE(a.status, 'new') as status,

@@ -46,6 +46,7 @@ class MatchesScreen(Screen):
             "Company",
             "Title",
             "Location",
+            "Salary",
         )
         self._load_data()
         self._update_filter_bar()
@@ -103,6 +104,9 @@ class MatchesScreen(Screen):
             source_str = r.get("source") or "—"
             if is_closed:
                 source_str = f"[dim]{source_str}[/dim]"
+            salary_str = (r.get("salary") or "—")[:24]
+            if is_closed:
+                salary_str = f"[dim]{salary_str}[/dim]"
             table.add_row(
                 score_str,
                 r["has_pdf"],
@@ -112,6 +116,7 @@ class MatchesScreen(Screen):
                 company,
                 title,
                 (r.get("location") or "")[:20],
+                salary_str,
                 key=r["job_id"],
             )
 
