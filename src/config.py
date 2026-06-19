@@ -57,6 +57,9 @@ class Config:
             "stripe": {
                 "display_name": "Stripe",
                 "url_template": "https://stripe.com/jobs/listing/{slug}/{id}",
+                # Stripe renders the pay band on stripe.com, not in the
+                # Greenhouse API content — fetch the listing page to recover it.
+                "salary_from_page": True,
             },
             "gitlab": {"display_name": "GitLab"},
             "affirm": {"display_name": "Affirm"},

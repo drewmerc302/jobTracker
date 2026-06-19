@@ -161,6 +161,8 @@ def build_scrapers(config: Config) -> list:
                 board_slug=slug,
                 company_name=info["display_name"],
                 url_template=info.get("url_template"),
+                salary_from_page=info.get("salary_from_page", False),
+                keyword_patterns=config.keyword_patterns,
             )
         )
     for key, info in config.workday_companies.items():

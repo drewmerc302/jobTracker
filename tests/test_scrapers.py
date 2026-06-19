@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+import httpx
 
 from src.scrapers.base import RawJob
 from src.scrapers.greenhouse import GreenhouseScraper
@@ -81,6 +82,106 @@ def test_greenhouse_handles_failure(mock_get):
     scraper = GreenhouseScraper(board_slug="dropbox", company_name="Dropbox")
     jobs = scraper.fetch_jobs()
     assert jobs == []
+
+
+def test_greenhouse_title_relevant_gates_fetch():
+    scraper = GreenhouseScraper(
+        board_slug="stripe",
+        company_name="Stripe",
+        keyword_patterns=["engineering manager", "director of engineering"],
+    )
+    assert scraper._title_relevant("Engineering Manager, Payments") is True
+    assert scraper._title_relevant("Senior Software Engineer") is False
+    # No patterns configured => never worth a per-job page fetch.
+    bare = GreenhouseScraper(board_slug="stripe", company_name="Stripe")
+    assert bare._title_relevant("Engineering Manager, Payments") is False
+
+
+@patch("src.scrapers.greenhouse.httpx.get")
+def test_greenhouse_fetch_salary_from_page_parses_band(mock_get):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.text = (
+        "<p>The annual US base salary range for this role is "
+        "$236,000 - $354,000. Additional benefits may include equity...</p>"
+    )
+    mock_get.return_value = mock_resp
+    scraper = GreenhouseScraper(board_slug="stripe", company_name="Stripe")
+    assert (
+        scraper._fetch_salary_from_page("https://stripe.com/x") == "$236,000 - $354,000"
+    )
+
+
+@patch("src.scrapers.greenhouse.httpx.get")
+def test_greenhouse_fetch_salary_from_page_handles_non_200(mock_get):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 404
+    mock_get.return_value = mock_resp
+    scraper = GreenhouseScraper(board_slug="stripe", company_name="Stripe")
+    assert scraper._fetch_salary_from_page("https://stripe.com/x") is None
+
+
+@patch("src.scrapers.greenhouse.httpx.get")
+def test_greenhouse_fetch_salary_from_page_handles_error(mock_get):
+    mock_get.side_effect = httpx.ConnectError("boom")
+    scraper = GreenhouseScraper(board_slug="stripe", company_name="Stripe")
+    assert scraper._fetch_salary_from_page("https://stripe.com/x") is None
+
+
+@patch("src.scrapers.greenhouse.httpx.get")
+def test_greenhouse_salary_from_page_integration(mock_get):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.text = (
+        "The annual US base salary range for this role is $200,000 - $300,000."
+    )
+    mock_get.return_value = mock_resp
+    data = {
+        "jobs": [
+            {
+                "id": 999,
+                "title": "Engineering Manager, Payments",
+                "content": "<p>No comp listed in the body.</p>",
+                "location": {"name": "New York"},
+                "departments": [{"name": "Engineering"}],
+            }
+        ]
+    }
+    scraper = GreenhouseScraper(
+        board_slug="stripe",
+        company_name="Stripe",
+        url_template="https://stripe.com/jobs/listing/{slug}/{id}",
+        salary_from_page=True,
+        keyword_patterns=["engineering manager"],
+    )
+    jobs = scraper._parse_response(data)
+    assert jobs[0].salary == "$200,000 - $300,000"
+    mock_get.assert_called_once()
+
+
+@patch("src.scrapers.greenhouse.httpx.get")
+def test_greenhouse_salary_from_page_skips_irrelevant_titles(mock_get):
+    data = {
+        "jobs": [
+            {
+                "id": 1000,
+                "title": "Senior Software Engineer",
+                "content": "<p>No comp listed in the body.</p>",
+                "location": {"name": "New York"},
+                "departments": [{"name": "Engineering"}],
+            }
+        ]
+    }
+    scraper = GreenhouseScraper(
+        board_slug="stripe",
+        company_name="Stripe",
+        url_template="https://stripe.com/jobs/listing/{slug}/{id}",
+        salary_from_page=True,
+        keyword_patterns=["engineering manager"],
+    )
+    jobs = scraper._parse_response(data)
+    assert jobs[0].salary is None
+    mock_get.assert_not_called()
 
 
 def test_workday_parse_search():
