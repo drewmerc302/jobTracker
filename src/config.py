@@ -65,6 +65,16 @@ class Config:
             "affirm": {"display_name": "Affirm"},
             "fanaticsfbg": {"display_name": "Fanatics"},
             "duolingo": {"display_name": "Duolingo"},
+            # Added 2026-06-30 from LinkedIn Job Alerts (jobtracker-update-from-linkedin).
+            "anthropic": {"display_name": "Anthropic"},
+            "airbnb": {"display_name": "Airbnb"},
+            "reddit": {"display_name": "Reddit"},
+            "figma": {"display_name": "Figma"},
+            "instacart": {"display_name": "Instacart"},
+            "planetlabs": {"display_name": "Planet Labs"},
+            "upstart": {"display_name": "Upstart"},
+            "betterment": {"display_name": "Betterment"},
+            "postscript": {"display_name": "Postscript"},
         }
     )
     workday_companies: dict[str, dict] = field(
@@ -96,6 +106,38 @@ class Config:
                 "display_name": "Trimble",
                 "base_url": "https://trimble.wd1.myworkdayjobs.com",
                 "path": "/wday/cxs/trimble/TrimbleCareers",
+            },
+            # Added 2026-06-30 from LinkedIn Job Alerts (jobtracker-update-from-linkedin).
+            "paypal": {
+                "display_name": "PayPal",
+                "base_url": "https://paypal.wd1.myworkdayjobs.com",
+                "path": "/wday/cxs/paypal/jobs",
+            },
+            "zillow": {
+                "display_name": "Zillow",
+                "base_url": "https://zillow.wd5.myworkdayjobs.com",
+                "path": "/wday/cxs/zillow/Zillow_Group_External",
+            },
+            "tealium": {
+                "display_name": "Tealium",
+                "base_url": "https://tealium.wd1.myworkdayjobs.com",
+                "path": "/wday/cxs/tealium/Careers",
+            },
+            # "Commerce" in the alert = BigCommerce's rebrand; roles live in the
+            # bigcommerce Workday tenant.
+            "bigcommerce": {
+                "display_name": "BigCommerce",
+                "base_url": "https://bigcommerce.wd12.myworkdayjobs.com",
+                "path": "/wday/cxs/bigcommerce/Commerce",
+            },
+            # DEXIS is an Envista brand; its roles live in Envista's Workday
+            # tenant. Scope to DEXIS-branded postings via search_text (same
+            # pattern as Splunk-in-Cisco).
+            "dexis": {
+                "display_name": "DEXIS",
+                "base_url": "https://envista.wd1.myworkdayjobs.com",
+                "path": "/wday/cxs/envista/envistacareers",
+                "search_text": "DEXIS",
             },
         }
     )
