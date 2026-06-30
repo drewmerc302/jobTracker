@@ -38,6 +38,7 @@ class OracleScraper(BaseScraper):
         company_name: str,
         tenant: str,
         site_number: str = "CX_1001",
+        region: str | None = None,
         keyword_patterns: list[str] | None = None,
         countries: list[str] | None = None,
         keyword_search: str = "engineering manager",
@@ -48,6 +49,10 @@ class OracleScraper(BaseScraper):
         self.company_name = company_name
         self.tenant = tenant
         self.site_number = site_number
+        # Datacenter/region segment in the ORC host, e.g. "us2" for Oracle's own
+        # tenant (eeho.fa.us2.oraclecloud.com). None for tenants whose host has
+        # no region segment (e.g. JPMorganChase: jpmc.fa.oraclecloud.com).
+        self.region = region
         self.keyword_patterns = keyword_patterns or []
         self.countries = countries or ["US"]
         self.keyword_search = keyword_search
@@ -57,6 +62,8 @@ class OracleScraper(BaseScraper):
 
     @property
     def base_url(self) -> str:
+        if self.region:
+            return f"https://{self.tenant}.fa.{self.region}.oraclecloud.com"
         return f"https://{self.tenant}.fa.oraclecloud.com"
 
     def _title_matches(self, title: str) -> bool:

@@ -153,6 +153,15 @@ class Config:
                 "tenant": "jpmc",
                 "site_number": "CX_1001",
             },
+            # Oracle's own roles live on its ORC host, which carries a datacenter
+            # region segment (eeho.fa.us2.oraclecloud.com) the bare-host pattern
+            # can't express — hence the explicit "region". Added 2026-06-30.
+            "oracle": {
+                "display_name": "Oracle",
+                "tenant": "eeho",
+                "region": "us2",
+                "site_number": "CX_1",
+            },
         }
     )
     keyword_patterns: list[str] = field(

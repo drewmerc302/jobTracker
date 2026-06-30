@@ -183,6 +183,7 @@ def build_scrapers(config: Config) -> list:
                 company_name=info["display_name"],
                 tenant=info["tenant"],
                 site_number=info.get("site_number", "CX_1001"),
+                region=info.get("region"),
                 keyword_patterns=config.keyword_patterns,
                 countries=info.get("countries", ["US"]),
             )
