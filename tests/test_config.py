@@ -28,6 +28,38 @@ def test_config_keyword_match():
     assert not config.matches_keyword("VP of Engineering")
 
 
+def test_config_compound_match_catches_nonadjacent_tokens():
+    """Leadership + engineering tokens that aren't adjacent (company-specific
+    phrasings the explicit patterns miss) should still match."""
+    config = Config()
+    # Amex-style: "manager" and "engineering" separated by the tech stack.
+    assert config.matches_keyword(
+        "Senior Manager- React, Typescript, Next.js - Global Web Engineering"
+    )
+    assert config.matches_keyword("Director, AI Engineering (Agentic AI Platform)")
+    assert config.matches_keyword("Manager, Machine Learning Engineering (Fraud)")
+    # A leadership title with no engineering token must not match.
+    assert not config.matches_keyword("Senior Manager, Data Strategy and Insights")
+
+
+def test_config_compound_match_negative_guard():
+    """Non-eng leadership titles that merely mention an eng noun are vetoed,
+    but real engineering-management titles survive the guard."""
+    config = Config()
+    # Vetoed: incidental eng token in a non-eng role.
+    assert not config.matches_keyword("Business Development Manager, Agentic Commerce")
+    assert not config.matches_keyword("Technical Program Manager, Engineering")
+    assert not config.matches_keyword("Senior Product Manager, Platform")
+    # Survives: "People Manager" is a positive signal, not a veto.
+    assert config.matches_keyword(
+        "Senior Manager, Software Engineering - Full Stack (People Manager)"
+    )
+    # Survives: eng role that happens to mention marketing tech.
+    assert config.matches_keyword(
+        "Engineering Manager, Marketing Technology - Segmentation Platform"
+    )
+
+
 def test_config_seniority_excluded():
     config = Config()
     assert config.is_seniority_excluded("VP of Engineering")

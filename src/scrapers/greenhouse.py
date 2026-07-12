@@ -1,6 +1,7 @@
 import html
 import logging
 import re
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 import httpx
@@ -52,6 +53,7 @@ class GreenhouseScraper(BaseScraper):
         url_template: str | None = None,
         salary_from_page: bool = False,
         keyword_patterns: list[str] | None = None,
+        title_matcher: Callable[[str], bool] | None = None,
     ):
         self.board_slug = board_slug
         self.company_name = company_name
@@ -61,6 +63,9 @@ class GreenhouseScraper(BaseScraper):
         # it — gated to keyword-relevant titles to bound request volume.
         self.salary_from_page = salary_from_page
         self.keyword_patterns = keyword_patterns or []
+        # Shared compound matcher (Config.matches_keyword) when provided; falls
+        # back to substring-any on keyword_patterns for standalone/test use.
+        self.title_matcher = title_matcher
 
     def fetch_jobs(self) -> list[RawJob]:
         url = f"{GREENHOUSE_API}/{self.board_slug}/jobs?content=true"
@@ -134,6 +139,8 @@ class GreenhouseScraper(BaseScraper):
         Boards return every open req (Stripe ~500+); only manager-track titles
         are worth a second HTTP round-trip. Empty patterns => never fetch.
         """
+        if self.title_matcher is not None:
+            return self.title_matcher(title)
         title_lower = title.lower()
         return any(kw in title_lower for kw in self.keyword_patterns)
 

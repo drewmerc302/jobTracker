@@ -1,6 +1,7 @@
 import logging
 import re
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 import httpx
@@ -45,6 +46,7 @@ class OracleScraper(BaseScraper):
         page_size: int = 200,
         request_delay: float = 1.0,
         max_pages: int = 25,
+        title_matcher: Callable[[str], bool] | None = None,
     ):
         self.company_name = company_name
         self.tenant = tenant
@@ -59,6 +61,9 @@ class OracleScraper(BaseScraper):
         self.page_size = page_size
         self.request_delay = request_delay
         self.max_pages = max_pages
+        # Shared compound matcher (Config.matches_keyword) when provided; falls
+        # back to substring-any on keyword_patterns for standalone/test use.
+        self.title_matcher = title_matcher
 
     @property
     def base_url(self) -> str:
@@ -67,6 +72,8 @@ class OracleScraper(BaseScraper):
         return f"https://{self.tenant}.fa.oraclecloud.com"
 
     def _title_matches(self, title: str) -> bool:
+        if self.title_matcher is not None:
+            return self.title_matcher(title)
         if not self.keyword_patterns:
             return True
         title_lower = title.lower()

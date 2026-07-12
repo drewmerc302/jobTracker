@@ -276,12 +276,89 @@ class Config:
             "remote",
         ]
     )
+    # Compound title match (see matches_keyword): a title qualifies if it carries
+    # a leadership token AND an engineering-domain token. This catches
+    # company-specific phrasings the explicit keyword_patterns miss — e.g. Amex's
+    # "Senior Manager- React, Typescript ... Global Web Engineering", where
+    # "manager" and "engineering" aren't adjacent. Recall-biased on purpose: the
+    # Haiku filter (threshold 0.6) and the deep dive are the precision gate, and
+    # role titles for the same job vary widely across companies. seniority_exclusions
+    # still fires first, so IC-senior (staff/principal) and above-target (VP+) drop.
+    leadership_tokens: list[str] = field(
+        default_factory=lambda: [
+            "manager",
+            "director",
+            "head of",
+            "head,",
+        ]
+    )
+    eng_tokens: list[str] = field(
+        default_factory=lambda: [
+            "engineering",
+            "software",
+            "developer",
+            "backend",
+            "back end",
+            "frontend",
+            "front end",
+            "full stack",
+            "fullstack",
+            "devops",
+            "sre",
+            "site reliability",
+            "machine learning",
+            "infrastructure",
+            "platform engineering",
+            "distributed systems",
+        ]
+    )
+    # Negative guard for the compound path: leadership titles that carry an
+    # engineering token only incidentally (BizDev/PM/TPM/sales/marketing/ops
+    # roles that mention "platform", "infrastructure", etc.). Vetoes a compound
+    # match even when a leadership+eng token pair is present. Deliberately does
+    # NOT list "people manager" — that phrase is a strong positive signal for the
+    # people-management roles we want. Also removes long-standing false positives
+    # from the explicit patterns (e.g. "Business Development Manager" matched
+    # "development manager").
+    role_exclusions: list[str] = field(
+        default_factory=lambda: [
+            "product manager",
+            "product management",
+            "program manager",
+            "program management",
+            "project manager",
+            "account manager",
+            "technical account",
+            "technical program",
+            "sales development",
+            "sales engineering",
+            "solutions engineering",
+            "business development",
+            "release manager",
+            "analytics manager",
+            "marketing manager",
+            "customer success",
+            "procurement",
+            "sourcing",
+            "recruit",
+            "accounting",
+            "payroll",
+        ]
+    )
 
     def matches_keyword(self, title: str) -> bool:
         title_lower = title.lower()
         if self.is_seniority_excluded(title):
             return False
-        return any(kw in title_lower for kw in self.keyword_patterns)
+        if any(excl in title_lower for excl in self.role_exclusions):
+            return False
+        # Fast path: an explicit manager-track phrase.
+        if any(kw in title_lower for kw in self.keyword_patterns):
+            return True
+        # Compound path: leadership token co-occurring with an engineering token.
+        has_leadership = any(tok in title_lower for tok in self.leadership_tokens)
+        has_eng = any(tok in title_lower for tok in self.eng_tokens)
+        return has_leadership and has_eng
 
     def is_seniority_excluded(self, title: str) -> bool:
         title_lower = title.lower()

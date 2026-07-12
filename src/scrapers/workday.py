@@ -1,6 +1,7 @@
 import logging
 import re
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 import httpx
@@ -33,6 +34,7 @@ class WorkdayScraper(BaseScraper):
         path: str,
         keyword_patterns: list[str] | None = None,
         search_text: str = "engineering manager",
+        title_matcher: Callable[[str], bool] | None = None,
     ):
         self.company_name = company_name
         self.base_url = base_url
@@ -41,8 +43,13 @@ class WorkdayScraper(BaseScraper):
         self.request_delay = 1.5
         self.keyword_patterns = keyword_patterns or []
         self.search_text = search_text
+        # Shared compound matcher (Config.matches_keyword) when provided; falls
+        # back to substring-any on keyword_patterns for standalone/test use.
+        self.title_matcher = title_matcher
 
     def _title_matches(self, title: str) -> bool:
+        if self.title_matcher is not None:
+            return self.title_matcher(title)
         title_lower = title.lower()
         return any(kw in title_lower for kw in self.keyword_patterns)
 
