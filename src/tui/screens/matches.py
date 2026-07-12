@@ -39,6 +39,7 @@ class MatchesScreen(Screen):
         table = self.query_one("#matches-table", DataTable)
         table.add_columns(
             "Score",
+            "Level",
             "PDF",
             "Status",
             "First Seen",
@@ -107,8 +108,12 @@ class MatchesScreen(Screen):
             salary_str = (r.get("salary") or "—")[:24]
             if is_closed:
                 salary_str = f"[dim]{salary_str}[/dim]"
+            level_str = (r.get("faang_level") or "—")[:30]
+            if is_closed:
+                level_str = f"[dim]{level_str}[/dim]"
             table.add_row(
                 score_str,
+                level_str,
                 r["has_pdf"],
                 status_str,
                 seen,

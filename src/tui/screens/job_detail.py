@@ -81,9 +81,14 @@ class JobDetailScreen(Screen):
         score = f"{match['relevance_score']:.0%}"
         salary = f" · {job['salary']}" if job.get("salary") else ""
         location = job.get("location") or "N/A"
+        level = (
+            f"\n[#8b949e]Level:[/] {match['faang_level']}"
+            if match.get("faang_level")
+            else ""
+        )
         header = (
             f"{job['company']} — {job['title']}\n"
-            f"{score} match · {status} · {location}{salary}"
+            f"{score} match · {status} · {location}{salary}{level}"
         )
         self.query_one("#job-header").update(header)
 

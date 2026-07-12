@@ -46,6 +46,18 @@ EVAL_TOOL = {
                 "items": {"type": "string"},
                 "description": "What the candidate should emphasize in interviews",
             },
+            "faang_level": {
+                "type": "string",
+                "description": (
+                    "One-line FAANG-equivalent leveling tag based on the role's "
+                    "ACTUAL SCOPE in the JD (reports, ICs vs managers, org/budget "
+                    "ownership), NOT its title — titles inflate/deflate across "
+                    "companies. Format: '<scope tier> ≈ <1-2 FAANG equivalents>', "
+                    "e.g. 'First-line EM ≈ Google M1/L6 · Meta M1' or "
+                    "'Director, manages managers ≈ Google L8 · Meta D1'. If the "
+                    "title is IC-track despite sounding managerial, say so."
+                ),
+            },
         },
         "required": [
             "relevant",
@@ -53,6 +65,7 @@ EVAL_TOOL = {
             "reason",
             "key_requirements",
             "interview_talking_points",
+            "faang_level",
         ],
     },
 }
@@ -114,6 +127,7 @@ Description:
         "reason": "Failed to evaluate",
         "key_requirements": [],
         "interview_talking_points": [],
+        "faang_level": None,
     }
 
 
@@ -181,6 +195,7 @@ def run_filter(
                             ),
                         }
                     ),
+                    faang_level=result.get("faang_level"),
                 )
                 matches.append({"job": job, "evaluation": result})
                 logger.info(

@@ -98,6 +98,8 @@ class Database:
             self._conn.execute(
                 "ALTER TABLE matches ADD COLUMN interview_prep_path TEXT"
             )
+        if "faang_level" not in match_cols:
+            self._conn.execute("ALTER TABLE matches ADD COLUMN faang_level TEXT")
         # Migrate jobs table: add source column + backfill
         job_cols = {
             row[1] for row in self._conn.execute("PRAGMA table_info(jobs)").fetchall()
@@ -235,14 +237,15 @@ class Database:
         suggestions: str = None,
         resume_path: str = None,
         cover_letter_path: str = None,
+        faang_level: str = None,
     ):
         now = datetime.now(timezone.utc).isoformat()
         self._conn.execute(
             """
             INSERT OR REPLACE INTO matches
             (job_id, relevance_score, match_reason, suggestions, resume_path,
-             cover_letter_path, matched_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+             cover_letter_path, faang_level, matched_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 job_id,
@@ -251,6 +254,7 @@ class Database:
                 suggestions,
                 resume_path,
                 cover_letter_path,
+                faang_level,
                 now,
             ),
         )
@@ -585,7 +589,7 @@ class Database:
         """Return all non-dismissed matches for open jobs (matches screen)."""
         rows = self._conn.execute("""
             SELECT m.job_id, j.company, j.title, j.location, j.salary, j.source,
-                   m.relevance_score,
+                   m.relevance_score, m.faang_level,
                    CASE WHEN m.resume_path IS NOT NULL THEN '✓' ELSE '—' END as has_pdf,
                    COALESCE(a.status, 'new') as status,
                    j.first_seen_at, j.closed_at

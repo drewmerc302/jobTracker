@@ -243,6 +243,8 @@ def _format_job_detail(job, match, db, markdown=False):
         )
         if job.get("salary"):
             lines.append(f"**Salary:** {job['salary']}")
+        if match.get("faang_level"):
+            lines.append(f"**Level:** {match['faang_level']}")
         lines.append(f"**URL:** {job.get('url', 'N/A')}")
         lines.append("")
         lines.append("## Why This Matches")
@@ -310,6 +312,8 @@ def _format_job_detail(job, match, db, markdown=False):
     lines.append(f"Location: {job.get('location', 'N/A')}")
     lines.append(f"Salary:   {job.get('salary', 'N/A')}")
     lines.append(f"Score:    {match['relevance_score']:.0%}")
+    if match.get("faang_level"):
+        lines.append(f"Level:    {match['faang_level']}")
     lines.append(f"Status:   {app_status}{app_date}")
     lines.append(f"URL:      {job.get('url', 'N/A')}")
     lines.append(f"\nWhy this matches:\n  {match['match_reason']}")
