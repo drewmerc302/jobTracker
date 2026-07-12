@@ -75,6 +75,9 @@ class Config:
             "upstart": {"display_name": "Upstart"},
             "betterment": {"display_name": "Betterment"},
             "postscript": {"display_name": "Postscript"},
+            # Added 2026-07-12 from LinkedIn Job Alerts (jobtracker-update-from-linkedin).
+            "customerio": {"display_name": "Customer.io"},
+            "gemini": {"display_name": "Gemini"},
         }
     )
     workday_companies: dict[str, dict] = field(
@@ -139,11 +142,49 @@ class Config:
                 "path": "/wday/cxs/envista/envistacareers",
                 "search_text": "DEXIS",
             },
+            # Added 2026-07-12 from LinkedIn Job Alerts (jobtracker-update-from-linkedin).
+            "wellsfargo": {
+                "display_name": "Wells Fargo",
+                "base_url": "https://wf.wd1.myworkdayjobs.com",
+                "path": "/wday/cxs/wf/WellsFargoJobs",
+            },
+            "pfizer": {
+                "display_name": "Pfizer",
+                "base_url": "https://pfizer.wd1.myworkdayjobs.com",
+                "path": "/wday/cxs/pfizer/PfizerCareers",
+            },
+            # J&J's Workday tenant is "jj" on wd5 (not "jnj"); careers.jnj.com is a
+            # Phenom front-end over this board.
+            "jnj": {
+                "display_name": "Johnson & Johnson",
+                "base_url": "https://jj.wd5.myworkdayjobs.com",
+                "path": "/wday/cxs/jj/JJ",
+            },
+            "etsy": {
+                "display_name": "Etsy",
+                "base_url": "https://etsy.wd5.myworkdayjobs.com",
+                "path": "/wday/cxs/etsy/Etsy_Careers",
+            },
+            "lifestance": {
+                "display_name": "LifeStance Health",
+                "base_url": "https://lifestance.wd5.myworkdayjobs.com",
+                "path": "/wday/cxs/lifestance/Careers",
+            },
+            "lumeris": {
+                "display_name": "Lumeris",
+                "base_url": "https://lumeris.wd1.myworkdayjobs.com",
+                "path": "/wday/cxs/lumeris/LC",
+            },
         }
     )
     lever_companies: dict[str, dict] = field(
         default_factory=lambda: {
             "spotify": {"display_name": "Spotify"},
+            # Added 2026-07-12 from LinkedIn Job Alerts. The "Hinge" alert
+            # (Director of Engineering, Core Services) is Hinge the dating app,
+            # owned by Match Group; roles live on Match Group's whole-org Lever
+            # board (all brands: Tinder/Hinge/Match/OkCupid/etc.).
+            "matchgroup": {"display_name": "Match Group (Hinge)"},
         }
     )
     oracle_companies: dict[str, dict] = field(
@@ -159,6 +200,22 @@ class Config:
             "oracle": {
                 "display_name": "Oracle",
                 "tenant": "eeho",
+                "region": "us2",
+                "site_number": "CX_1",
+            },
+            # Added 2026-07-12 from LinkedIn Job Alerts. Both run Oracle Recruiting
+            # Cloud on region-segmented hosts (like Oracle's own entry above);
+            # public front-ends (careers.americanexpress.com / jobs.yum.com) mask
+            # the Oracle backend, which is why earlier probes mislabeled them.
+            "amex": {
+                "display_name": "American Express",
+                "tenant": "egug",
+                "region": "us2",
+                "site_number": "CX_1",
+            },
+            "yum": {
+                "display_name": "Yum! Brands",
+                "tenant": "eczd",
                 "region": "us2",
                 "site_number": "CX_1",
             },
