@@ -36,16 +36,9 @@ EVAL_TOOL = {
                 "type": "string",
                 "description": "Why this job matches or doesn't",
             },
-            "key_requirements": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Top requirements from the job description",
-            },
-            "interview_talking_points": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "What the candidate should emphasize in interviews",
-            },
+            # Keep faang_level ahead of the array fields: tool-call JSON is
+            # generated in property order, and if the response hits max_tokens the
+            # trailing fields get truncated. This short tag must survive.
             "faang_level": {
                 "type": "string",
                 "description": (
@@ -57,6 +50,16 @@ EVAL_TOOL = {
                     "'Director, manages managers ≈ Google L8 · Meta D1'. If the "
                     "title is IC-track despite sounding managerial, say so."
                 ),
+            },
+            "key_requirements": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Top requirements from the job description",
+            },
+            "interview_talking_points": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "What the candidate should emphasize in interviews",
             },
         },
         "required": [
@@ -95,7 +98,7 @@ def llm_evaluate(
 ) -> dict:
     response = client.messages.create(
         model=config.llm_filter_model,
-        max_tokens=1024,
+        max_tokens=1536,
         tools=[EVAL_TOOL],
         tool_choice={"type": "tool", "name": "evaluate_job"},
         messages=[
