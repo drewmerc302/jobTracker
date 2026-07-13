@@ -63,7 +63,6 @@ class Config:
             },
             "gitlab": {"display_name": "GitLab"},
             "affirm": {"display_name": "Affirm"},
-            "fanaticsfbg": {"display_name": "Fanatics"},
             "duolingo": {"display_name": "Duolingo"},
             # Added 2026-06-30 from LinkedIn Job Alerts (jobtracker-update-from-linkedin).
             "anthropic": {"display_name": "Anthropic"},
