@@ -77,6 +77,12 @@ class Config:
             # Added 2026-07-12 from LinkedIn Job Alerts (jobtracker-update-from-linkedin).
             "customerio": {"display_name": "Customer.io"},
             "gemini": {"display_name": "Gemini"},
+            # Added 2026-07-20 from LinkedIn Job Alerts (jobtracker-update-from-linkedin).
+            "roku": {"display_name": "Roku"},
+            # Bevi's Greenhouse slug is "bevicareers"; bare "bevi" 404s. Hardware /
+            # beverage company, so most of the board is EE/manufacturing/food-science
+            # — low match yield beyond the occasional software-leadership role.
+            "bevicareers": {"display_name": "Bevi"},
         }
     )
     workday_companies: dict[str, dict] = field(
@@ -173,6 +179,29 @@ class Config:
                 "display_name": "Lumeris",
                 "base_url": "https://lumeris.wd1.myworkdayjobs.com",
                 "path": "/wday/cxs/lumeris/LC",
+            },
+            # Added 2026-07-20 from LinkedIn Job Alerts (jobtracker-update-from-linkedin).
+            # Citi's site ID is the literal string "2" (unusual, but confirmed live).
+            # Supersedes the 2026-07-12 needs-manual-scraper entry that wrongly
+            # concluded Citi had no public Workday board. Highest-value board in the
+            # batch — multiple Jersey City / NYC EM+Director roles — but also the
+            # slowest: ~1000 postings match the default search_text.
+            "citi": {
+                "display_name": "Citi",
+                "base_url": "https://citi.wd5.myworkdayjobs.com",
+                "path": "/wday/cxs/citi/2",
+            },
+            # ServiceTitan's legacy SmartRecruiters board is stale (8 postings); the
+            # live board is Workday (94). Several US Remote SWE-manager roles.
+            "servicetitan": {
+                "display_name": "ServiceTitan",
+                "base_url": "https://servicetitan.wd1.myworkdayjobs.com",
+                "path": "/wday/cxs/servicetitan/ServiceTitan",
+            },
+            "salesforce": {
+                "display_name": "Salesforce",
+                "base_url": "https://salesforce.wd12.myworkdayjobs.com",
+                "path": "/wday/cxs/salesforce/External_Career_Site",
             },
         }
     )
