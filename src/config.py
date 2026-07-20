@@ -283,6 +283,20 @@ class Config:
             "intern",
         ]
     )
+    # Banks invert the title ladder: at Citi the grades run
+    # AVP (C12) -> VP (C13) -> SVP (C14) -> Director (C15) -> MD (C16), so an
+    # "SVP" req is a senior-manager/director rung, not an executive one — the
+    # opposite of what "SVP" means at a tech company. The abbreviated form
+    # already survives is_seniority_excluded (\bvp\b can't match inside "svp"),
+    # but the spelled-out "Senior Vice President" was being vetoed by the
+    # "vice president" entry, silently dropping in-band Citi/JPMC/Wells Fargo
+    # roles. Exempt the senior-prefixed form and let the Haiku filter judge it:
+    # same recall-bias tradeoff documented on leadership_tokens below.
+    seniority_exclusion_exemptions: list[str] = field(
+        default_factory=lambda: [
+            "senior vice president",
+        ]
+    )
 
     # Location filtering: if a role requires in-office, only accept these areas
     # (roughly 1 hour commute from Yardley, PA)
@@ -390,8 +404,14 @@ class Config:
 
     def is_seniority_excluded(self, title: str) -> bool:
         title_lower = title.lower()
+        # Blank out exempted phrases first (see seniority_exclusion_exemptions):
+        # "Senior Vice President" must not trip the "vice president" exclusion,
+        # but a bare "Vice President" in the same title still should.
+        scan_target = title_lower
+        for exemption in self.seniority_exclusion_exemptions:
+            scan_target = scan_target.replace(exemption, " ")
         for excl in self.seniority_exclusions:
-            if re.search(rf"\b{re.escape(excl)}\b", title_lower):
+            if re.search(rf"\b{re.escape(excl)}\b", scan_target):
                 return True
         return False
 

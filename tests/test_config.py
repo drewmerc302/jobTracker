@@ -65,3 +65,28 @@ def test_config_seniority_excluded():
     assert config.is_seniority_excluded("VP of Engineering")
     assert config.is_seniority_excluded("Principal Engineer")
     assert not config.is_seniority_excluded("Senior Engineering Manager")
+
+
+def test_config_bank_svp_is_not_excluded():
+    """Banks invert the ladder: SVP is a senior-manager rung below Director,
+    not an executive title. Both the abbreviated and spelled-out forms must
+    survive the seniority gate, while a bare VP still gets vetoed."""
+    config = Config()
+    # Abbreviated: \bvp\b can't match inside "svp", so this always worked —
+    # pin it so a future regex change can't silently regress it.
+    assert not config.is_seniority_excluded(
+        "Senior Engineering Manager, Capital Markets Platform - SVP"
+    )
+    # Spelled out: this was the actual bug — vetoed by the "vice president"
+    # entry, silently dropping in-band Citi/JPMC/Wells Fargo roles.
+    assert not config.is_seniority_excluded(
+        "Senior Vice President, Engineering Sr Lead Analyst - C14"
+    )
+    assert config.matches_keyword("SVP, Software Engineering Manager")
+    # The exemption must not leak: a bare VP is still above target.
+    assert config.is_seniority_excluded("Vice President of Engineering")
+    assert config.is_seniority_excluded("VP of Engineering")
+    # A title carrying both forms is still excluded on the bare one.
+    assert config.is_seniority_excluded(
+        "VP, Engineering — reports to the Senior Vice President"
+    )
