@@ -187,4 +187,6 @@ uv run python scripts/generate_screenshots.py
 
 ## Resume & PDF generation
 
-Tailored PDFs are generated using external formatter scripts (not included in this repo). Resume YAML source files are loaded from `~/.resume_versions/`. Output PDFs are written to `output/<date>/`.
+Tailored PDFs are generated through [`resumekit`](../resumekit), a sibling repo wired in as an editable path dependency. It owns the resume version store at `~/.resume_versions/` and the Typst templates. Output PDFs are written to `output/<date>/`.
+
+Requires `typst` (`brew install typst`) and Inter (`brew install --cask font-inter`). Run `uv run --directory ../resumekit rk doctor` to verify.

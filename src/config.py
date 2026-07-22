@@ -25,26 +25,8 @@ class Config:
         default_factory=lambda: Path.home() / ".resume_versions"
     )
     resume_project: str = "drewmercResume"
-    resume_formatter_dir: Path = field(
-        default_factory=lambda: (
-            Path.home()
-            / ".claude/plugins/marketplaces/resume-helper-skills/resume-formatter"
-        )
-    )
-    resume_coverletter_dir: Path = field(
-        default_factory=lambda: (
-            Path.home()
-            / ".claude/plugins/marketplaces/resume-helper-skills/resume-coverletter"
-        )
-    )
-    resume_state_dir: Path = field(
-        default_factory=lambda: (
-            Path.home()
-            / ".claude/plugins/marketplaces/resume-helper-skills/resume-state"
-        )
-    )
-    resume_template: str = "executive"
-    cover_letter_template: str = "executive-cover"
+    resume_template: str = "drew-executive"
+    cover_letter_template: str = "drew-cover"
     db_path: Path = field(
         default_factory=lambda: PROJECT_ROOT / "data" / "jobtracker.db"
     )

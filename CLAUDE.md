@@ -111,7 +111,9 @@ SQLite at `data/jobtracker.db` with WAL mode. Schema in `src/db.py` with auto-mi
 
 **DB pattern:** `sqlite3.Row` objects (dict-like access). Always `commit()` after writes. Upsert on conflict for `jobs` table. Batch queries use 500-item chunks for large ID lists.
 
-**Resume source:** YAML format loaded from `~/.resume_versions/projects/{project}/versions/{active_version}/resume.yaml`. Contains `summary`, `skills`, `experience[]` (company, title, bullets, achievements). PDF generation uses formatter scripts in `~/.claude/plugins/`.
+**Resume source:** YAML loaded via the `resumekit` package (`../resumekit`, editable path dependency). `Store.open(...).project(...).version()` resolves the active version by exact id — never glob `{active_version}*`, which matches v1/v10/v11 alike. Contains `summary`, `skills`, `experience[]` (company, title, bullets, achievements).
+
+**PDF generation:** `resumekit.render_resume(yaml, template, out)` compiles data-driven Typst templates (`drew-executive`, `drew-cover`). Templates read the YAML at compile time, so there is no generated `.typ` to keep in sync; `*.build.typ` beside the PDF is a disposable copy of the template. A missing font raises `MissingFontError` rather than silently falling back to a serif face. Do not shell out to `~/.claude/plugins/*/resume-*/scripts/` — that pipeline is retired.
 
 **Output artifacts:** Generated PDFs written to `output/` organized by date/company.
 

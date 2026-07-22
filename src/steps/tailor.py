@@ -1,11 +1,13 @@
 import copy
 import json
 import logging
-import subprocess
 from pathlib import Path
 
 import anthropic
 import yaml
+from resumekit import Store, render_resume, resolve_template
+from resumekit.letter import build_letter_data, write_letter_yaml
+from resumekit.render import RenderError
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -76,26 +78,15 @@ ANALYSIS_TOOL = {
 
 
 def get_active_resume_yaml(config: Config) -> tuple[Path, dict]:
-    project_json = (
-        config.resume_versions_path
-        / "projects"
-        / config.resume_project
-        / "project.json"
-    )
-    with open(project_json) as f:
-        project = json.load(f)
-    active_version = project["active_version"]
-    versions_dir = (
-        config.resume_versions_path / "projects" / config.resume_project / "versions"
-    )
-    candidates = list(versions_dir.glob(f"{active_version}*"))
-    if not candidates:
-        raise FileNotFoundError(f"No version directory found for {active_version}")
-    version_dir = candidates[0]
-    yaml_path = version_dir / "resume.yaml"
-    with open(yaml_path) as f:
-        data = yaml.safe_load(f)
-    return yaml_path, data
+    """Resolve the active resume version through resumekit.
+
+    Previously this globbed ``{active_version}*``, which matches v1, v10 and v11
+    alike and picked whichever the filesystem returned first. resumekit resolves
+    version directories by exact name.
+    """
+    store = Store.open(config.resume_versions_path)
+    version = store.project(config.resume_project).version()
+    return version.yaml_path, version.load_yaml()
 
 
 def reorder_resume_yaml(resume_data: dict, reorder_map: dict) -> dict:
@@ -235,63 +226,34 @@ def ensure_analysis(
     return result
 
 
+def _template(name: str, config: Config):
+    store = Store.open(config.resume_versions_path)
+    project = store.project(config.resume_project)
+    return resolve_template(
+        name,
+        store_templates=store.templates_dir,
+        project_templates=project.templates_dir,
+    )
+
+
 def generate_resume_pdf(
     resume_data: dict, output_dir: Path, config: Config
 ) -> Path | None:
     output_dir.mkdir(parents=True, exist_ok=True)
     yaml_path = output_dir / "resume.yaml"
-    typ_path = output_dir / "resume.typ"
     pdf_path = output_dir / "Andrew_Mercurio_resume.pdf"
 
     with open(yaml_path, "w") as f:
         yaml.dump(resume_data, f, default_flow_style=False, allow_unicode=True)
 
     try:
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "--directory",
-                str(config.resume_formatter_dir),
-                "scripts/yaml_to_typst.py",
-                str(yaml_path),
-                config.resume_template,
-                "--output",
-                str(typ_path),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
+        result = render_resume(
+            yaml_path, _template(config.resume_template, config), pdf_path
         )
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "--directory",
-                str(config.resume_formatter_dir),
-                "scripts/compile_typst.py",
-                str(typ_path),
-                "--output",
-                str(pdf_path),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return pdf_path
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Resume PDF generation failed: {e.stderr}")
+        return result.pdf
+    except RenderError as e:
+        logger.error(f"Resume PDF generation failed: {e}")
         return None
-
-
-def _enforce_one_page(typ_path: Path):
-    """Patch the generated Typst file to fit on exactly one page."""
-    content = typ_path.read_text()
-    # Reduce font size from 11pt to 10pt
-    content = content.replace("size: 11pt", "size: 10pt")
-    # Tighten paragraph leading if present
-    content = content.replace("leading: 0.65em", "leading: 0.55em")
-    typ_path.write_text(content)
 
 
 def generate_cover_letter_pdf(
@@ -305,56 +267,24 @@ def generate_cover_letter_pdf(
     output_dir.mkdir(parents=True, exist_ok=True)
     company_clean = company.replace(" ", "_")
     jd_path = output_dir / "job_description.txt"
-    typ_path = output_dir / "cover_letter.typ"
     pdf_path = output_dir / f"{company_clean}_cover_letter.pdf"
     jd_path.write_text(job_description)
 
     try:
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "--directory",
-                str(config.resume_coverletter_dir),
-                "scripts/generate_cover_letter.py",
-                str(resume_yaml_path),
-                "--template",
-                config.cover_letter_template,
-                "--company",
-                company,
-                "--position",
-                position,
-                "--job-file",
-                str(jd_path),
-                "--output",
-                str(typ_path),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
+        with open(resume_yaml_path) as f:
+            resume = yaml.safe_load(f) or {}
+        letter_yaml = write_letter_yaml(
+            build_letter_data(resume, company=company, position=position),
+            output_dir / "cover_letter.yaml",
         )
-
-        # Enforce 1-page cover letter: reduce font size and tighten spacing
-        _enforce_one_page(typ_path)
-
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "--directory",
-                str(config.resume_coverletter_dir),
-                "scripts/compile_cover_letter.py",
-                str(typ_path),
-                "--output",
-                str(pdf_path),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
+        result = render_resume(
+            letter_yaml, _template(config.cover_letter_template, config), pdf_path
         )
-        return pdf_path
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Cover letter generation failed: {e.stderr}")
+        if result.pages > 1:
+            logger.warning(f"Cover letter for {company} ran to {result.pages} pages")
+        return result.pdf
+    except RenderError as e:
+        logger.error(f"Cover letter generation failed: {e}")
         return None
 
 
