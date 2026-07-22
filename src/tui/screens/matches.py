@@ -80,12 +80,22 @@ class MatchesScreen(Screen):
             filtered.sort(key=lambda r: r.get("first_seen_at") or "", reverse=True)
             filtered.sort(key=lambda r: bool(r.get("closed_at")))
         elif sort_key == "company":
-            filtered.sort(key=lambda r: r["company"].lower())
-            filtered.sort(key=lambda r: bool(r.get("closed_at")))
+            filtered.sort(
+                key=lambda r: (
+                    bool(r.get("closed_at")),
+                    r["company"].lower(),
+                    -r["relevance_score"],
+                )
+            )
         elif sort_key == "source":
-            filtered.sort(key=lambda r: r["company"].lower())
-            filtered.sort(key=lambda r: (r.get("source") or "zzz").lower())
-            filtered.sort(key=lambda r: bool(r.get("closed_at")))
+            filtered.sort(
+                key=lambda r: (
+                    bool(r.get("closed_at")),
+                    (r.get("source") or "zzz").lower(),
+                    r["company"].lower(),
+                    -r["relevance_score"],
+                )
+            )
 
         for r in filtered:
             seen = (r.get("first_seen_at") or "")[:10]
