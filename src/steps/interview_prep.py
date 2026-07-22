@@ -6,6 +6,7 @@ from pathlib import Path
 
 import anthropic
 import yaml
+from resumekit.render import typst_binary
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -152,17 +153,10 @@ def _generate_pdf(
     typ_path.write_text(_generate_typst(prep, job))
 
     try:
+        # This Typst source is written by _generate_typst above, not by a
+        # template, so it only needs a compiler — not the resumekit renderer.
         result = subprocess.run(
-            [
-                "uv",
-                "run",
-                "--directory",
-                str(config.resume_formatter_dir),
-                "scripts/compile_typst.py",
-                str(typ_path),
-                "--output",
-                str(pdf_path),
-            ],
+            [typst_binary(), "compile", str(typ_path), str(pdf_path)],
             capture_output=True,
             text=True,
             timeout=60,
